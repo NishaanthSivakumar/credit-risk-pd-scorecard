@@ -13,17 +13,26 @@ the way a bank's credit risk and model validation teams would do it:
 
 ## Results
 
-> ✍️ Fill this in after running on the real data (numbers are in `reports/metrics.json`).
+Full run on 621,022 resolved 36-month loans (numbers from `reports/metrics.json`; full write-up in
+[`reports/validation_report.md`](reports/validation_report.md)).
 
 | Sample | Loans | Default rate | Gini | KS | Score PSI vs train |
 |---|---|---|---|---|---|
-| Train (≤2013) | | | | | – |
-| Test (≤2013) | | | | | |
-| **Out-of-time (2014–15)** | | | | | |
+| Train (≤2013) | 122,798 | 12.6% | 0.316 | 0.227 | – |
+| Test (≤2013) | 52,628 | 12.6% | 0.305 | 0.221 | 0.000 |
+| **Out-of-time (2014–15)** | **445,596** | **14.5%** | **0.294** | **0.211** | **0.001** |
 
-Scorecard Gini vs. gradient-boosting challenger: … · vs. LendingClub sub-grade: …
+Out-of-time Gini: scorecard 0.294 · gradient-boosting challenger 0.316 · LendingClub sub-grade 0.343.
 
-Key finding: …
+**Key finding:** the scorecard *ranks* risk consistently out of time (Gini down only 7% from train,
+monotonic default rates from 26.6% in the worst score decile to 4.3% in the best, every feature's
+CSI below 0.10), but it *under-predicts* PD on 2014–15 loans (12.7% predicted vs 14.5% observed),
+failing the binomial test in all 7 grades. LendingClub's later vintages took on more indebted
+borrowers (average DTI 13.5% → 18.5% from 2011 to 2015), so the base default rate moved while the
+risk drivers held. The remedy is an intercept recalibration on recent vintages, not a rebuild.
+The challenger's in-sample edge is mostly overfitting (Gini 0.441 train → 0.325 test).
+
+![Default rate by score decile, out-of-time](reports/figures/rank_ordering_oot.png)
 
 ## Project structure
 
@@ -84,6 +93,7 @@ checking the code runs. Point the pipeline at it with
 | No post-origination fields | `total_pymnt`, `recoveries`, … reveal the outcome (leakage) |
 | `grade`, `sub_grade`, `int_rate` excluded | They are LendingClub's own risk view; used as a benchmark instead |
 | `addr_state` excluded | Geographic variables raise fair-lending concerns |
+| Features >10% missing in train dropped | `mort_acc` only exists from 2012, so its "Missing" bin was really a vintage flag |
 | Monotonic WoE bins, ≥5% per bin | Explainable, stable points; no noisy tiny bins |
 | All WoE coefficients must be negative | Higher WoE = safer; a positive sign means collinearity |
 | Out-of-time validation | Tests the model on future vintages, as it would be used |

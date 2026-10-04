@@ -71,6 +71,11 @@ MIN_IV = 0.02           # IV < 0.02 = not predictive
 SUSPICIOUS_IV = 0.50    # IV > 0.5 = "too good", check for leakage
 MAX_CORR = 0.70         # drop the weaker of two WoE features above this |corr|
 MAX_PVALUE = 0.05
+# A feature missing for a large share of training loans is dropped. In this data
+# heavy missingness comes from when a field was introduced, not from the
+# borrower (mort_acc is blank for every loan issued before 2012), so its
+# "Missing" bin would really be a vintage flag.
+MAX_MISSING_FRAC = 0.10
 
 # --- Scorecard scaling ---------------------------------------------------------
 # Score 600 corresponds to good:bad odds of 30:1, and every 20 points doubles the odds.

@@ -15,8 +15,10 @@ from .woe import WoEBinner
 # ----------------------------------------------------------------------------
 def select_by_iv_and_correlation(binner: WoEBinner, X_woe: pd.DataFrame,
                                  min_iv=C.MIN_IV, suspicious_iv=C.SUSPICIOUS_IV,
-                                 max_corr=C.MAX_CORR) -> tuple[list[str], pd.DataFrame]:
-    """Step 1: keep features with min_iv <= IV < suspicious_iv.
+                                 max_corr=C.MAX_CORR,
+                                 max_missing=C.MAX_MISSING_FRAC) -> tuple[list[str], pd.DataFrame]:
+    """Step 1: keep features with min_iv <= IV < suspicious_iv and at most
+    max_missing of training loans in the "Missing" bin.
     Step 2: walk features from highest IV down; drop any whose WoE is highly
     correlated with a feature already kept (keeps the stronger of each pair).
     Returns the kept features and a log explaining every decision."""
@@ -24,6 +26,11 @@ def select_by_iv_and_correlation(binner: WoEBinner, X_woe: pd.DataFrame,
     log, kept = [], []
     corr = X_woe.corr().abs()
     for f, v in iv.items():
+        t = binner.bins[f].table
+        miss = t.loc[t["bin"] == "Missing", "pct_of_sample"].sum()
+        if miss > max_missing:
+            log.append((f, v, "dropped", f"{miss:.0%} missing > {max_missing:.0%}"))
+            continue
         if v < min_iv:
             log.append((f, v, "dropped", f"IV {v:.3f} < {min_iv}"))
             continue

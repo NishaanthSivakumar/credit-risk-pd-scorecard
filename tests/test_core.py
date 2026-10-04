@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from pdmodel import model as M  # noqa: E402
 from pdmodel import validation as V  # noqa: E402
 from pdmodel.woe import WoEBinner  # noqa: E402
 
@@ -27,6 +28,15 @@ def test_woe_is_monotonic_and_missing_has_own_bin():
     assert np.all(np.diff(rates) >= 0)          # risk rises with x
     assert "Missing" in set(t["bin"])
     assert b.transform(X).notna().all().all()
+
+
+def test_selection_drops_mostly_missing_feature():
+    X, y = _toy()
+    X["mostly_missing"] = X["x"].where(np.random.default_rng(2).random(len(X)) > 0.3)
+    b = WoEBinner().fit(X, y, ["x", "mostly_missing"], ["cat"])
+    kept, log = M.select_by_iv_and_correlation(b, b.transform(X))
+    assert "mostly_missing" not in kept
+    assert "missing" in log.set_index("feature").loc["mostly_missing", "reason"]
 
 
 def test_psi_zero_for_identical_and_positive_for_shift():

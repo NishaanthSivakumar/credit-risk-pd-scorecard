@@ -1,14 +1,14 @@
 # Validation commentary
 
-Hand-written commentary inserted into `validation_report.md` by the pipeline.
-Each `## <key>` section fills the matching ✍️ placeholder. Update it when the numbers change.
+Analysis of the full run. The pipeline inserts each `## <key>` section into the matching
+section of `validation_report.md`.
 
 ## conclusion
 
 **Fit with conditions: usable for ranking applicants; not usable for absolute PDs until recalibrated.**
 
 - *Ranking holds up out of time.* Gini falls only 7% from train (0.316) to OOT (0.294), the score
-  distribution is stable (PSI 0.002) and default rates fall monotonically across all ten OOT score
+  distribution is stable (PSI 0.001) and default rates fall monotonically across all ten OOT score
   deciles, from 26.6% in the worst to 4.3% in the best.
 - *Discrimination is modest.* OOT Gini of 0.294 sits just below this project's 0.30 amber threshold,
   which is expected for a model limited to application data with no detailed bureau history.

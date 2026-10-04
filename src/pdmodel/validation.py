@@ -110,7 +110,7 @@ def psi(expected, actual, n_bins=10) -> float:
 
 def csi_by_feature(binner, train: pd.DataFrame, other: pd.DataFrame, features) -> pd.Series:
     """Characteristic Stability Index: PSI computed on each feature's WoE bins.
-    Tells you WHICH inputs drifted when the score PSI moves."""
+    Shows WHICH inputs drifted when the score PSI moves."""
     out = {}
     for f in features:
         e = binner.bins[f].bin_labels(train[f]).value_counts(normalize=True)

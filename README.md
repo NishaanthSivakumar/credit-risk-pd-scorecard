@@ -54,7 +54,7 @@ The challenger's in-sample edge is mostly overfitting (Gini 0.441 train → 0.32
 │   ├── run_pipeline.py          run everything, write reports/
 │   └── make_synthetic_data.py   fake data for smoke-testing only
 ├── tests/test_core.py
-└── reports/                     generated tables, figures, validation_report.md
+└── reports/                     validation_report.md, commentary.md, tables, figures
 ```
 
 ## Getting the data
@@ -65,24 +65,27 @@ The challenger's in-sample edge is mostly overfitting (Gini 0.441 train → 0.32
 2. Leave `accepted_2007_to_2018Q4.csv(.gz)` anywhere under `data/raw/` — the code finds it.
 
 The file is ~1.6 GB unzipped; only 24 columns are loaded, which needs a few GB of RAM.
-`data/` is git-ignored — don't commit the data.
+`data/` is git-ignored.
 
 ## How to run
+
+Tested with Python 3.13.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-python scripts/run_pipeline.py              # full run, a few minutes
-python scripts/run_pipeline.py --nrows 300000   # quick first run
-python -m pytest -q                          # unit tests
+python scripts/run_pipeline.py   # full run, under a minute
+python -m pytest -q              # unit tests
 ```
 
-Then open the notebooks in order (01 → 04). Each one saves what the next one needs to `data/processed/`.
+The pipeline writes every table and figure plus `reports/validation_report.md`, inserting the
+analysis from `reports/commentary.md`. The notebooks (01 → 04) walk through the same steps; each
+saves what the next one needs to `data/processed/`.
 
-No data yet? `python scripts/make_synthetic_data.py` writes a fake LendingClub-shaped file for
-checking the code runs. Point the pipeline at it with
-`--data data/raw/synthetic/accepted_2007_to_2018Q4_SYNTHETIC.csv.gz`. **Never report synthetic results.**
+`python scripts/make_synthetic_data.py` writes a fake LendingClub-shaped file for testing the code
+without the real data (run the pipeline with
+`--data data/raw/synthetic/accepted_2007_to_2018Q4_SYNTHETIC.csv.gz`). Its results are meaningless.
 
 ## Methodology notes
 

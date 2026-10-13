@@ -128,6 +128,19 @@ class Scorecard:
         return pd.DataFrame(rows)
 
 
+def develop_scorecard(train: pd.DataFrame, numeric=C.NUMERIC_FEATURES, categorical=C.CATEGORICAL_FEATURES,
+                      binner_kwargs: dict | None = None, max_missing=C.MAX_MISSING_FRAC) -> dict:
+    """The full development process on one training sample: WoE binning, IV and
+    correlation screen, backward elimination, final logistic fit, scorecard."""
+    binner = WoEBinner(**(binner_kwargs or {})).fit(train, train["default"], numeric, categorical)
+    Xw = binner.transform(train)
+    shortlist, sel_log = select_by_iv_and_correlation(binner, Xw, max_missing=max_missing)
+    final, elim_log = backward_eliminate(Xw, train["default"], shortlist)
+    res = fit_logit(Xw[final], train["default"])
+    return {"binner": binner, "features": final, "logit": res, "selection_log": sel_log,
+            "elimination_log": elim_log, "scorecard": Scorecard(binner, final, res)}
+
+
 # ----------------------------------------------------------------------------
 # Challenger model
 # ----------------------------------------------------------------------------
@@ -156,3 +169,23 @@ def _challenger_matrix(df, numeric, categorical, levels=None):
 def challenger_pd(model, df, numeric=C.NUMERIC_FEATURES, categorical=C.CATEGORICAL_FEATURES):
     X = _challenger_matrix(df, numeric, categorical, levels=model._cat_levels)
     return model.predict_proba(X)[:, 1]
+
+
+# ----------------------------------------------------------------------------
+# Recalibrated scorecard
+# ----------------------------------------------------------------------------
+class CalibratedScorecard:
+    """Scorecard + PD recalibration + rating grades: the model as it would be used.
+    The points table and ranking come from the scorecard; PD levels from the recalibration."""
+
+    def __init__(self, card: Scorecard, recalibrator, grade_edges: np.ndarray):
+        self.card, self.recal, self.edges = card, recalibrator, np.asarray(grade_edges)
+
+    def predict_pd(self, X_raw: pd.DataFrame) -> np.ndarray:
+        return self.recal.transform(self.card.predict_pd(X_raw))
+
+    def score(self, X_raw: pd.DataFrame) -> np.ndarray:
+        return self.card.score(X_raw)
+
+    def grade(self, X_raw: pd.DataFrame) -> np.ndarray:
+        return len(self.edges) + 1 - np.searchsorted(self.edges, self.score(X_raw), side="right")

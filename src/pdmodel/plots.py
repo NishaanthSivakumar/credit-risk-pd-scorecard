@@ -8,7 +8,9 @@ from sklearn.metrics import roc_curve
 # Fixed colour roles - the same entity always gets the same colour.
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
-SAMPLE_COLORS = {"train": BLUE, "test": AQUA, "oot": ORANGE}
+SAMPLE_COLORS = {"train": BLUE, "test": AQUA, "calib": MUTED, "oot": ORANGE}
+METHOD_COLORS = {"none": ORANGE, "intercept": BLUE, "intercept_slope": AQUA}
+MODEL_COLORS = {"scorecard": BLUE, "challenger": ORANGE}
 
 plt.rcParams.update({
     "figure.dpi": 110, "savefig.dpi": 150, "savefig.bbox": "tight",
@@ -35,16 +37,17 @@ def roc_plot(curves: dict, ax=None):
     return ax
 
 
-def calibration_plot(tables: dict, ax=None):
+def calibration_plot(tables: dict, ax=None, colors: dict | None = None, title="Calibration by PD decile"):
     """tables = {"train": calibration_table(...), "oot": ...}"""
     ax = ax or plt.subplots(figsize=(5.2, 4.6))[1]
+    colors = colors or SAMPLE_COLORS
     hi = max(max(t["mean_pd"].max(), t["observed_dr"].max()) for t in tables.values()) * 1.05
     ax.plot([0, hi], [0, hi], color=MUTED, lw=1, ls="--", label="perfect calibration")
     for name, t in tables.items():
         ax.plot(t["mean_pd"], t["observed_dr"], marker="o", ms=6,
-                color=SAMPLE_COLORS.get(name, BLUE), label=name)
+                color=colors.get(name, BLUE), label=name)
     ax.set(xlabel="Mean predicted PD (decile)", ylabel="Observed default rate",
-           title="Calibration by PD decile", xlim=(0, hi), ylim=(0, hi))
+           title=title, xlim=(0, hi), ylim=(0, hi))
     ax.legend(loc="upper left")
     return ax
 
@@ -102,4 +105,91 @@ def psi_bar(csi, ax=None, title="Feature stability (CSI): train vs OOT"):
                 transform=ax.get_xaxis_transform())
     ax.set(xlabel="CSI", title=title, xlim=(0, max(0.3, float(s.max()) * 1.1)))
     ax.grid(axis="y", visible=False)
+    return ax
+
+
+def ci_plot(ci, metric="gini", ax=None, title="Out-of-time Gini with 95% bootstrap intervals"):
+    """ci: rows (scheme, model) with estimate / lower / upper for one metric."""
+    ax = ax or plt.subplots(figsize=(6.4, 3.0))[1]
+    rows = ci.xs(metric, level="metric").reset_index()
+    y = np.arange(len(rows))[::-1]
+    for yi, r in zip(y, rows.itertuples()):
+        c = MODEL_COLORS.get(r.model, BLUE)
+        ax.plot([r.lower, r.upper], [yi, yi], color=c, lw=3, solid_capstyle="round")
+        ax.plot(r.estimate, yi, "o", color=c, ms=7, mec="white")
+    ax.set_yticks(y, [f"{r.model} · {r.scheme} resampling" for r in rows.itertuples()])
+    ax.set(xlabel=metric.capitalize() if metric != "gini" else "Gini", title=title)
+    ax.grid(axis="y", visible=False)
+    return ax
+
+
+def loss_distribution(losses_pct, measures_pct: dict, realised_pct=None, ax=None,
+                      title="Simulated lifetime loss, 2015 portfolio"):
+    """Histogram of portfolio loss (% of exposure) with VaR / ES marked."""
+    ax = ax or plt.subplots(figsize=(6.8, 4))[1]
+    ax.hist(losses_pct, bins=80, color=BLUE, alpha=0.8)
+    marks = [("EL", measures_pct["expected_loss"], MUTED, "-"),
+             ("VaR 99%", measures_pct["var_0.99"], INK, "--"),
+             ("ES 99%", measures_pct["es_0.99"], INK, ":")]
+    if realised_pct is not None:
+        marks.append(("realised", realised_pct, ORANGE, "-"))
+    for lab, v, c, ls in marks:
+        ax.axvline(v, color=c, lw=1.6, ls=ls, label=f"{lab}  {v:.2f}%")
+    ax.set(xlabel="Portfolio loss (% of funded amount)", ylabel="Scenarios", title=title)
+    ax.grid(axis="x", visible=False)
+    ax.legend(loc="upper right")
+    return ax
+
+
+def correlation_sensitivity(table, ax=None):
+    """table indexed by rho with expected_loss / var_0.99 / es_0.99 in % of exposure."""
+    ax = ax or plt.subplots(figsize=(6.4, 4))[1]
+    for col, lab, c in [("expected_loss", "Expected loss", MUTED), ("var_0.99", "VaR 99%", BLUE),
+                        ("es_0.99", "ES 99%", ORANGE)]:
+        ax.plot(table.index, table[col], marker="o", ms=5, color=c, label=lab)
+    ax.set(xlabel="Asset correlation ρ", ylabel="Loss (% of funded amount)",
+           title="Tail loss rises with default correlation")
+    ax.legend()
+    return ax
+
+
+def convergence_plot(table, ax=None):
+    ax = ax or plt.subplots(figsize=(6.4, 4))[1]
+    x = table.index.to_numpy()
+    for col, lab, c in [("var_0.99", "VaR 99%", BLUE), ("es_0.99", "ES 99%", ORANGE),
+                        ("expected_loss", "Expected loss", MUTED)]:
+        se = table["el_se" if col == "expected_loss" else f"{col}_se"].to_numpy()
+        ax.plot(x, table[col], marker="o", ms=5, color=c, label=lab)
+        ax.fill_between(x, table[col] - 2 * se, table[col] + 2 * se, color=c, alpha=0.15, lw=0)
+    ax.set_xscale("log")
+    ax.set(xlabel="Scenarios", ylabel="Loss (% of funded amount)", title="Monte Carlo convergence (±2 s.e.)")
+    ax.legend()
+    return ax
+
+
+def concentration_plot(table, ax=None):
+    """table indexed by portfolio size with var_0.99 and es_0.99 in % of exposure."""
+    ax = ax or plt.subplots(figsize=(6.4, 4))[1]
+    x = table.index.to_numpy()
+    ax.plot(x, table["var_0.99"], marker="o", ms=5, color=BLUE, label="VaR 99%")
+    ax.plot(x, table["es_0.99"], marker="o", ms=5, color=ORANGE, label="ES 99%")
+    ax.plot(x, table["expected_loss"], marker="o", ms=5, color=MUTED, label="Expected loss")
+    ax.set_xscale("log")
+    ax.set(xlabel="Loans in portfolio", ylabel="Loss (% of funded amount)",
+           title="Smaller portfolios carry more tail risk")
+    ax.legend()
+    return ax
+
+
+def el_by_grade(table, ax=None):
+    """Expected vs realised loss rate by rating grade."""
+    ax = ax or plt.subplots(figsize=(6.4, 4))[1]
+    x = np.arange(len(table))
+    ax.bar(x - 0.2, table["el_rate"] * 100, width=0.4, color=BLUE, label="expected loss")
+    ax.bar(x + 0.2, table["realised_loss_rate"] * 100, width=0.4, color=ORANGE, label="realised loss")
+    ax.set_xticks(x, [str(g) for g in table.index])
+    ax.set(xlabel="Rating grade (1 = best)", ylabel="Loss (% of funded amount)",
+           title="Expected vs realised lifetime loss by grade")
+    ax.grid(axis="x", visible=False)
+    ax.legend()
     return ax

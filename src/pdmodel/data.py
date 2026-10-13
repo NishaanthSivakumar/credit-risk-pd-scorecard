@@ -25,9 +25,10 @@ def find_raw_file(raw_dir: Path = C.RAW_DIR) -> Path:
 
 
 def load_raw(path: Path | None = None, nrows: int | None = None) -> pd.DataFrame:
-    """Read only the columns we need (the full file has 151 columns, ~2.2M rows)."""
+    """Read only the columns we need (the full file has 151 columns, ~2.2M rows).
+    Outcome fields come along for loss measurement; they never become features."""
     path = Path(path) if path else find_raw_file()
-    wanted = set(C.RAW_COLUMNS)
+    wanted = set(C.RAW_COLUMNS) | set(C.OUTCOME_COLUMNS)
     df = pd.read_csv(path, usecols=lambda c: c in wanted, nrows=nrows, low_memory=False)
     missing = wanted - set(df.columns)
     if missing:
@@ -54,13 +55,15 @@ def prepare(raw: pd.DataFrame) -> pd.DataFrame:
     """Apply the sample definition, build the target and engineer features.
 
     Returns one row per loan with: issue_d, issue_year, default (0/1),
-    model features, and the benchmark column (sub_grade).
+    model features, the benchmark column (sub_grade) and the outcome fields
+    used only for loss measurement (C.OUTCOME_COLUMNS).
     """
     df = raw.copy()
 
     # Parse dates. The Kaggle file ends with two summary rows that have no date.
     df["issue_d"] = pd.to_datetime(df["issue_d"], format="%b-%Y", errors="coerce")
     df["earliest_cr_line"] = pd.to_datetime(df["earliest_cr_line"], format="%b-%Y", errors="coerce")
+    df["last_pymnt_d"] = pd.to_datetime(df["last_pymnt_d"], format="%b-%Y", errors="coerce")
     df = df.dropna(subset=["issue_d"])
     df["issue_year"] = df["issue_d"].dt.year
 
@@ -90,19 +93,22 @@ def prepare(raw: pd.DataFrame) -> pd.DataFrame:
         df[c] = df[c].astype(str).str.strip()
 
     keep = (["issue_d", "issue_year", "default", C.BENCHMARK_COLUMN, "grade", "int_rate"]
-            + C.NUMERIC_FEATURES + C.CATEGORICAL_FEATURES)
+            + C.NUMERIC_FEATURES + C.CATEGORICAL_FEATURES + C.OUTCOME_COLUMNS)
     return df[keep].reset_index(drop=True)
 
 
 def split_samples(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    """Train / test from the development vintages, plus an out-of-time sample."""
+    """Train / test from the development vintages, a calibration vintage and an
+    untouched out-of-time vintage (see config.py)."""
     dev = df[df["issue_year"] <= C.DEV_LAST_YEAR]
-    oot = df[df["issue_year"] > C.DEV_LAST_YEAR]
+    calib = df[df["issue_year"] == C.CALIB_YEAR]
+    oot = df[df["issue_year"] > C.CALIB_YEAR]
     train, test = train_test_split(
         dev, test_size=C.TEST_SIZE, stratify=dev["default"], random_state=C.RANDOM_STATE
     )
     return {"train": train.reset_index(drop=True),
             "test": test.reset_index(drop=True),
+            "calib": calib.reset_index(drop=True),
             "oot": oot.reset_index(drop=True)}
 
 

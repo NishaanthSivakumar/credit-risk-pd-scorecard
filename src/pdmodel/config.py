@@ -19,10 +19,13 @@ TERM = "36 months"
 FIRST_ISSUE_YEAR = 2007
 LAST_ISSUE_YEAR = 2015
 
-# Development sample = issued <= DEV_LAST_YEAR (split into train / test).
-# Out-of-time (OOT) sample = issued after that. This mimics how a bank would
-# build a model on older vintages and then check it on newer ones.
+# Chronological samples. This mimics how a bank would build a model on older
+# vintages and then check it on newer ones:
+#   train / test  issued <= DEV_LAST_YEAR, random 70/30 split (in-time development sample)
+#   calib         issued in CALIB_YEAR: used only to fit the PD recalibration
+#   oot           issued after CALIB_YEAR: untouched out-of-time test, used once
 DEV_LAST_YEAR = 2013
+CALIB_YEAR = 2014
 TEST_SIZE = 0.30
 
 # --- Target definition -------------------------------------------------------
@@ -48,6 +51,25 @@ RAW_COLUMNS = [
     "fico_range_low", "fico_range_high", "inq_last_6mths", "open_acc",
     "pub_rec", "revol_bal", "revol_util", "total_acc", "mort_acc",
 ]
+
+# Outcome fields, recorded after the loan was issued. They are loaded ONLY to
+# measure loss given default and exposure at default (portfolio module) and for
+# the data audit. They must never be model features: tests enforce this.
+OUTCOME_COLUMNS = [
+    "funded_amnt", "total_rec_prncp", "recoveries", "collection_recovery_fee",
+    "total_pymnt", "last_pymnt_d",
+]
+
+# Post-origination fields in the Kaggle file. None of these may ever appear in
+# NUMERIC_FEATURES or CATEGORICAL_FEATURES (checked by audit.leakage_check).
+LEAKAGE_COLUMNS = {
+    "loan_status", "out_prncp", "out_prncp_inv", "total_pymnt", "total_pymnt_inv",
+    "total_rec_prncp", "total_rec_int", "total_rec_late_fee", "recoveries",
+    "collection_recovery_fee", "last_pymnt_d", "last_pymnt_amnt", "next_pymnt_d",
+    "last_credit_pull_d", "last_fico_range_high", "last_fico_range_low",
+    "hardship_flag", "debt_settlement_flag", "settlement_status", "pymnt_plan",
+    "funded_amnt_inv",
+}
 
 NUMERIC_FEATURES = [
     "loan_amnt", "annual_inc", "loan_to_income", "dti", "fico",
@@ -89,3 +111,47 @@ N_GRADES = 7
 # --- Validation thresholds (traffic-light / RAG) ------------------------------
 GINI_GREEN, GINI_AMBER = 0.40, 0.30
 PSI_GREEN, PSI_AMBER = 0.10, 0.25
+
+# --- Recalibration and uncertainty --------------------------------------------
+RECALIBRATION_METHODS = ["none", "intercept", "intercept_slope"]
+# The slope is only re-estimated when it differs from 1 by more than this (and significantly)
+RECAL_SLOPE_MATERIAL = 0.10
+BOOTSTRAP_DRAWS = 1000        # resamples per scheme
+CI_LEVEL = 0.95
+
+# --- Validation decision ------------------------------------------------------
+# Calibration-in-the-large: |mean PD - observed default rate| in percentage points
+CAL_GAP_GREEN, CAL_GAP_AMBER = 0.01, 0.03
+# Grades failing the one-sided binomial test at 1%
+FAILED_GRADES_GREEN, FAILED_GRADES_AMBER = 0, 2
+# Relative Gini fall from train to out-of-time
+GINI_DROP_GREEN, GINI_DROP_AMBER = 0.10, 0.20
+# Challenger Gini advantage that would be material (about 10% of a 0.30 Gini)
+CHALLENGER_GINI_AMBER, CHALLENGER_GINI_RED = 0.03, 0.05
+# Sensitivity: spread of out-of-time Gini across alternative specifications,
+# and relative change in mean PD across the coefficient-uncertainty band
+ALT_SPEC_GINI_GREEN, ALT_SPEC_GINI_AMBER = 0.02, 0.05
+COEF_PD_GREEN, COEF_PD_AMBER = 0.05, 0.10
+# Share of loans still unresolved in the modelled vintages (target maturity)
+UNRESOLVED_GREEN, UNRESOLVED_AMBER = 0.01, 0.03
+
+# --- Portfolio risk (lifetime, 36-month horizon) ------------------------------
+# LGD and EAD are measured on charged-off loans issued up to CALIB_YEAR, so the
+# 2015 portfolio's own outcomes are never used to set its loss parameters.
+# Asset correlation rho for the one-factor model:
+#   "basel_retail" - Basel other-retail formula per loan (3%-16%, falling with PD),
+#                    evaluated at the loan's annualised PD
+#   "estimate"     - matched to the variation of quarterly vintage default rates
+#   a number       - one rho for every loan
+# The estimate is reported but not used by default: the vintages with enough loans
+# (2009-2015) contain no recession, so they understate systematic risk.
+ASSET_CORRELATION = "basel_retail"
+TERM_YEARS = 3
+MC_SIMULATIONS = 20_000
+MC_SEED = 7
+VAR_LEVELS = [0.95, 0.99]
+ES_LEVELS = [0.975, 0.99]
+CORRELATION_GRID = [0.0, 0.02, 0.05, 0.10, 0.15, 0.20]
+CONCENTRATION_SIZES = [100, 500, 2_000, 10_000]
+PD_MULTIPLIERS = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5]
+LGD_SHIFTS = [-0.10, -0.05, 0.0, 0.05, 0.10]

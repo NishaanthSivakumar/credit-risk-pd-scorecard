@@ -50,6 +50,14 @@ def make(n: int, seed: int = 0) -> pd.DataFrame:
     status[(r.random(n) < 0.01) & (year < 2010)] = "Does not meet the credit policy. Status:Fully Paid"
 
     rate = np.clip(6 + 0.9 * (z + 3) * 4 + r.normal(0, 1.5, n), 5.3, 30.9).round(2)
+
+    # Outcome fields: defaulted loans repaid part of the principal and recovered a little
+    bad = status == "Charged Off"
+    repaid_share = np.where(bad, r.uniform(0.1, 0.7, n), 1.0)
+    total_rec_prncp = (loan_amnt * repaid_share).round(2)
+    recoveries = np.where(bad, (loan_amnt - total_rec_prncp) * r.uniform(0, 0.2, n), 0.0).round(2)
+    months = np.where(bad, r.integers(3, 30, n), np.minimum(r.integers(6, 48, n), 36))
+    last_pymnt = issue + pd.to_timedelta(months * 30.44, unit="D")
     gi = np.clip(((rate - 5) / 26 * 35).astype(int), 0, 34)
     sub_grade = np.array([f"{g}{i}" for g in "ABCDEFG" for i in range(1, 6)])[gi]
 
@@ -63,7 +71,11 @@ def make(n: int, seed: int = 0) -> pd.DataFrame:
         "fico_range_high": fico_low + 4, "inq_last_6mths": inq, "open_acc": r.poisson(11, n),
         "pub_rec": r.poisson(0.2, n), "revol_bal": (r.lognormal(9.3, 1.0, n)).round(0),
         "revol_util": revol_util, "total_acc": r.poisson(24, n), "mort_acc": mort_acc,
-        "total_pymnt": 0.0,  # post-origination field present in the real file; never used
+        # Post-origination fields: used only for loss measurement, never as features
+        "funded_amnt": loan_amnt, "total_rec_prncp": total_rec_prncp, "recoveries": recoveries,
+        "collection_recovery_fee": (recoveries * 0.18).round(2),
+        "total_pymnt": (total_rec_prncp * (1 + rate / 100 * months / 24) + recoveries).round(2),
+        "last_pymnt_d": last_pymnt.dt.strftime("%b-%Y"),
     })
 
 

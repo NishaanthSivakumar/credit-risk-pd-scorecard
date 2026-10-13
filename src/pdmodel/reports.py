@@ -9,8 +9,10 @@ import numpy as np
 import pandas as pd
 
 from . import assessment as A
+from . import bootstrap as B
 from . import audit
 from . import config as C
+from . import portfolio as PF
 
 PCT = "{:.2%}".format
 PCT1 = "{:.1%}".format
@@ -156,20 +158,6 @@ default and exposure at default, never as model inputs.
 # ----------------------------------------------------------------------------
 # Validation report
 # ----------------------------------------------------------------------------
-def _ci_table(ci: pd.DataFrame) -> pd.DataFrame:
-    """One row per (model, metric): estimate with month-block and loan-level intervals."""
-    metrics = ["gini", "ks", "auc", "brier", "log_loss", "eo_ratio", "cal_intercept", "cal_slope"]
-    rows = []
-    for model in ["scorecard", "challenger"]:
-        for k in metrics:
-            m, l = ci.loc[("month", model, k)], ci.loc[("loan", model, k)]
-            rows.append({"model": model, "metric": k, "estimate": f"{m['estimate']:.4f}",
-                         "95% interval, month blocks": f"{m['lower']:.4f} – {m['upper']:.4f}",
-                         "95% interval, loans": f"{l['lower']:.4f} – {l['upper']:.4f}",
-                         "s.e. month / loan": f"{m['std_error']:.4f} / {l['std_error']:.4f}"})
-    return pd.DataFrame(rows).set_index(["model", "metric"])
-
-
 def _status_md(df):
     return md(df, index=True)
 
@@ -195,7 +183,7 @@ def validation_report(R: dict, notes: dict) -> str:
               "cal_slope": F3, "grades_failing": "{:.0f}".format}
     dec = pd.concat({k: v[["mean_pd", "observed_dr", "eo_ratio"]] for k, v in R["recal_deciles"].items()}, axis=1)
     dec.columns = [f"{a}: {b}" for a, b in dec.columns]
-    ci = _ci_table(R["ci"])
+    ci = B.summary_table(R["ci"])
     pair = R["paired"]
     s = R["sens"]
     reg = R["register"]
@@ -402,16 +390,6 @@ validator also built the model.*
 # ----------------------------------------------------------------------------
 # Portfolio risk report
 # ----------------------------------------------------------------------------
-def _conc_value(name: str, v) -> str:
-    if not isinstance(v, (int, float, np.floating, np.integer)):
-        return str(v)
-    if "share" in name:
-        return f"{v:.3%}" if v < 0.01 else f"{v:.1%}"
-    if "Herfindahl" in name:
-        return f"{v:.2e}" if v < 0.001 else f"{v:.3f}"
-    return f"{v:,.0f}"
-
-
 def _rho_text(P: dict) -> str:
     r = np.broadcast_to(P["rho_loans"], (len(P["loans"]),))
     if P["rho_method"] == "basel_retail":
@@ -437,8 +415,7 @@ def portfolio_report(P: dict, notes: dict) -> str:
                                                        (rp["var_0.99"] - rp["expected_loss"]) / 100]
     re = P["rho_estimate"]
     params = P["params"].copy()
-    conc = P["concentration"].copy().rename_axis("measure")
-    conc["value"] = [_conc_value(k, v) for k, v in conc["value"].items()]
+    conc = PF.format_concentration(P["concentration"]).rename_axis("measure")
     sens = P["el_sensitivity"]
     corr = P["correlation"][["expected_loss", "std", "var_0.95", "var_0.99", "es_0.975", "es_0.99"]]
     cs = P["concentration_sim"][["expected_loss", "std", "var_0.99", "es_0.99"]]

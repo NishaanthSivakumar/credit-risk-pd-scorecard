@@ -6,8 +6,11 @@ cannot be tuned to the outcome. Thresholds live in config.py.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from . import config as C
@@ -138,3 +141,73 @@ def dimensions_table(dims: list[Dimension]) -> pd.DataFrame:
 
 def rules_table() -> pd.DataFrame:
     return pd.DataFrame(DECISION_RULES, columns=["decision", "criterion", "rationale"]).set_index("decision")
+
+
+# ----------------------------------------------------------------------------
+# Gathering the evidence
+# ----------------------------------------------------------------------------
+def read_register(path: Path) -> pd.DataFrame:
+    """Rows of the markdown table in reports/limitations_register.md."""
+    head = ["id", "limitation", "impact", "severity", "mitigation"]
+    if not Path(path).exists():
+        return pd.DataFrame(columns=head)
+    rows = []
+    for line in Path(path).read_text().splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.startswith("|") and re.fullmatch(r"L\d+", cells[0]):
+            rows.append(cells[:len(head)])
+    return pd.DataFrame(rows, columns=head)
+
+
+def bins_monotonic(binner, features) -> bool:
+    """True if every numeric feature's bad rate moves in one direction across its bins."""
+    ok = True
+    for f in features:
+        b = binner.bins[f]
+        if b.kind != "numeric":
+            continue
+        r = b.table.loc[b.table["bin"] != "Missing", "bad_rate"].diff().dropna()
+        ok &= bool((r >= -1e-12).all() or (r <= 1e-12).all())
+    return ok
+
+
+def gather_evidence(checks, coefs: pd.DataFrame, features, binner, metrics: pd.DataFrame,
+                    csi: pd.Series, rank_oot: pd.DataFrame, ci: pd.DataFrame, paired: pd.DataFrame,
+                    sens: dict, register: pd.DataFrame) -> dict:
+    """Evidence shared by every model version (everything except calibration).
+    Intervals come from the month-block bootstrap, the more conservative scheme."""
+    gini_ci = ci.loc[("month", "scorecard", "gini")]
+    diff = paired.loc[("month", "gini")]
+    m = metrics
+    return {
+        "checks": checks,
+        "n_wrong_sign": int((coefs.loc[features, "coef"] >= 0).sum()),
+        "max_pvalue": float(coefs.loc[features, "p_value"].max()),
+        "max_vif": float(coefs.loc[features, "vif"].max()),
+        "bins_monotonic": bins_monotonic(binner, features),
+        "gini_oot": float(m.loc["oot", "gini"]),
+        "gini_oot_lower": gini_ci["lower"], "gini_oot_upper": gini_ci["upper"],
+        "score_psi": float(m.loc["oot", "score_psi_vs_train"]), "max_csi": float(csi.max()),
+        "gini_drop": float((m.loc["train", "gini"] - m.loc["oot", "gini"]) / m.loc["train", "gini"]),
+        "rank_monotonic": bool(rank_oot["monotonic"].all()),
+        "challenger_gini_diff": diff["difference"], "challenger_gini_lower": diff["lower"],
+        "challenger_gini_upper": diff["upper"],
+        "alt_spec_gini_range": float(np.ptp(sens["alternatives"]["gini_oot"])),
+        "coef_pd_half_width": float(sens["coef_joint"].loc["mean_pd", "relative_half_width"]),
+        "n_limitations": len(register), "n_high_limitations": int((register["severity"] == "High").sum()),
+    }
+
+
+def assess_versions(common: dict, y_oot, versions: dict, grade_oot) -> tuple[dict, dict]:
+    """Assess each model version {name: out-of-time PDs}. Returns (dimensions, decisions)."""
+    from .validation import binomial_test_by_grade
+
+    y = np.asarray(y_oot)
+    dims, decisions = {}, {}
+    for name, p in versions.items():
+        b = binomial_test_by_grade(y, p, grade_oot)
+        ev = {**common, "cal_gap": float(np.mean(p) - y.mean()),
+              "red_grades": int(b["result"].str.startswith("RED").sum()), "n_grades": len(b)}
+        dims[name] = assess(ev)
+        decisions[name] = decide(dims[name])
+    return dims, decisions

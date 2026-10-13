@@ -3,7 +3,6 @@ recalibration -> uncertainty -> sensitivity -> decision -> portfolio risk -> rep
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import matplotlib
@@ -101,16 +100,10 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
 
     # ---- 5. recalibration: fit on calib, evaluate once on oot -------------------------------------
     say("5/9 Recalibration ...")
-    method, why = K.choose_method(y["calib"], pd_["calib"], C.RECAL_SLOPE_MATERIAL)
-    recals = {m: K.Recalibrator(m).fit(y["calib"], pd_["calib"]) for m in C.RECALIBRATION_METHODS}
-    rows, deciles = {}, {}
-    for m, r in recals.items():
-        p = r.transform(pd_["oot"])
-        rows[m] = {"a": r.a, "b": r.b, **V.discrimination(y["oot"], p), **K.calibration_metrics(y["oot"], p),
-                   "grades_failing": int(V.binomial_test_by_grade(y["oot"], p, grade["oot"])["result"]
-                                         .str.startswith("RED").sum())}
-        deciles[m] = K.decile_table(y["oot"], p)
-    R.update(recal_method=method, recal_reason=why, recals=recals, recal_table=pd.DataFrame(rows).T,
+    rc = K.compare_methods(y["calib"], pd_["calib"], y["oot"], pd_["oot"], grade["oot"],
+                           C.RECALIBRATION_METHODS, C.RECAL_SLOPE_MATERIAL)
+    method, why, recals, deciles = rc["method"], rc["reason"], rc["recalibrators"], rc["deciles"]
+    R.update(recal_method=method, recal_reason=why, recals=recals, recal_table=rc["table"],
              recal_deciles=deciles)
     R["recal_table"].to_csv(tab_dir / "recalibration_oot.csv")
     pd.concat(deciles, names=["method"]).to_csv(tab_dir / "recalibration_deciles_oot.csv")
@@ -155,34 +148,14 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
 
     # ---- 8. structured assessment and decision -------------------------------------------------
     say("8/9 Validation assessment ...")
-    register = _read_register(rd / "limitations_register.md")
-    gini_ci = R["ci"].loc[("month", "scorecard", "gini")]
-    pd_month = R["paired"].loc[("month", "gini")]
-    common = {
-        "checks": checks,
-        "n_wrong_sign": int((R["coefs"].loc[final, "coef"] >= 0).sum()),
-        "max_pvalue": float(R["coefs"].loc[final, "p_value"].max()),
-        "max_vif": float(R["coefs"].loc[final, "vif"].max()),
-        "bins_monotonic": _bins_monotonic(binner, final),
-        "gini_oot": metrics["oot"]["gini"], "gini_oot_lower": gini_ci["lower"], "gini_oot_upper": gini_ci["upper"],
-        "score_psi": metrics["oot"]["score_psi_vs_train"], "max_csi": float(R["csi"].max()),
-        "gini_drop": (metrics["train"]["gini"] - metrics["oot"]["gini"]) / metrics["train"]["gini"],
-        "rank_monotonic": bool(R["rank"]["oot"]["monotonic"].all()),
-        "challenger_gini_diff": pd_month["difference"], "challenger_gini_lower": pd_month["lower"],
-        "challenger_gini_upper": pd_month["upper"],
-        "alt_spec_gini_range": float(np.ptp(sens["alternatives"]["gini_oot"])),
-        "coef_pd_half_width": float(sens["coef_joint"].loc["mean_pd", "relative_half_width"]),
-        "n_limitations": len(register), "n_high_limitations": int((register["severity"] == "High").sum())
-        if len(register) else 0,
-    }
-    R["dims"], R["decision"] = {}, {}
-    for version, p_ in [("as developed", pd_["oot"]), ("recalibrated", pdc["oot"])]:
-        b = V.binomial_test_by_grade(y["oot"], p_, grade["oot"])
-        ev = {**common, "cal_gap": float(p_.mean() - y["oot"].mean()),
-              "red_grades": int(b["result"].str.startswith("RED").sum()), "n_grades": len(b)}
-        R["dims"][version] = A.assess(ev)
-        R["decision"][version] = A.decide(R["dims"][version])
-        A.dimensions_table(R["dims"][version]).to_csv(tab_dir / f"assessment_{version.replace(' ', '_')}.csv")
+    register = A.read_register(rd / "limitations_register.md")
+    common = A.gather_evidence(checks, R["coefs"], final, binner, R["metrics"], R["csi"], R["rank"]["oot"],
+                               R["ci"], R["paired"], sens, register)
+    R["dims"], R["decision"] = A.assess_versions(common, y["oot"],
+                                                 {"as developed": pd_["oot"], "recalibrated": pdc["oot"]},
+                                                 grade["oot"])
+    for version, dims in R["dims"].items():
+        A.dimensions_table(dims).to_csv(tab_dir / f"assessment_{version.replace(' ', '_')}.csv")
     R["register"] = register
     say(f"   as developed: {R['decision']['as developed'][0]}; recalibrated: {R['decision']['recalibrated'][0]}")
 
@@ -309,30 +282,6 @@ def run_portfolio(oot: pd.DataFrame, pd_oot, grade_oot, hist: pd.DataFrame, grad
     conc_sim.to_csv(tab_dir / "portfolio_concentration_simulation.csv")
     rho_tab.to_csv(tab_dir / "portfolio_vintage_default_rates.csv")
     return out
-
-
-def _bins_monotonic(binner, features) -> bool:
-    ok = True
-    for f in features:
-        b = binner.bins[f]
-        if b.kind != "numeric":
-            continue
-        r = b.table.loc[b.table["bin"] != "Missing", "bad_rate"].diff().dropna()
-        ok &= bool((r >= -1e-12).all() or (r <= 1e-12).all())
-    return ok
-
-
-def _read_register(path: Path) -> pd.DataFrame:
-    """Rows of the markdown table in reports/limitations_register.md."""
-    if not path.exists():
-        return pd.DataFrame(columns=["id", "limitation", "severity"])
-    rows = []
-    for line in path.read_text().splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if line.startswith("|") and re.fullmatch(r"L\d+", cells[0]):
-            rows.append(cells)
-    head = ["id", "limitation", "impact", "severity", "mitigation"]
-    return pd.DataFrame([r[:len(head)] for r in rows], columns=head[:len(rows[0])] if rows else head)
 
 
 def _save(ax, path):

@@ -126,6 +126,19 @@ def concentration(port: pd.DataFrame) -> pd.DataFrame:
     return pd.Series(rows, name="value").to_frame()
 
 
+def format_concentration(conc: pd.DataFrame) -> pd.DataFrame:
+    """Readable copy of concentration(): shares as percentages, tiny indices in scientific notation."""
+    def fmt(name, v):
+        if not isinstance(v, (int, float, np.floating, np.integer)):
+            return str(v)
+        if "share" in name:
+            return f"{v:.3%}" if v < 0.01 else f"{v:.1%}"
+        if "Herfindahl" in name:
+            return f"{v:.2e}" if v < 0.001 else f"{v:.3f}"
+        return f"{v:,.0f}"
+    return pd.DataFrame({"value": [fmt(k, v) for k, v in conc["value"].items()]}, index=conc.index)
+
+
 def el_sensitivity(port: pd.DataFrame, pd_multipliers=C.PD_MULTIPLIERS,
                    lgd_shifts=C.LGD_SHIFTS) -> pd.DataFrame:
     """Portfolio EL as % of exposure for scaled PDs (rows) and shifted LGDs (columns)."""

@@ -108,3 +108,17 @@ def paired_difference(draws: pd.DataFrame, point: pd.DataFrame, model_a: str, mo
 
 def month_groups(issue_d: pd.Series) -> np.ndarray:
     return pd.factorize(pd.to_datetime(issue_d).dt.to_period("M"), sort=True)[0]
+
+
+def summary_table(ci: pd.DataFrame) -> pd.DataFrame:
+    """One row per (model, metric): estimate with month-block and loan-level intervals."""
+    metrics = ["gini", "ks", "auc", "brier", "log_loss", "eo_ratio", "cal_intercept", "cal_slope"]
+    rows = []
+    for model in ["scorecard", "challenger"]:
+        for k in metrics:
+            m, l = ci.loc[("month", model, k)], ci.loc[("loan", model, k)]
+            rows.append({"model": model, "metric": k, "estimate": f"{m['estimate']:.4f}",
+                         "95% interval, month blocks": f"{m['lower']:.4f} – {m['upper']:.4f}",
+                         "95% interval, loans": f"{l['lower']:.4f} – {l['upper']:.4f}",
+                         "s.e. month / loan": f"{m['std_error']:.4f} / {l['std_error']:.4f}"})
+    return pd.DataFrame(rows).set_index(["model", "metric"])

@@ -169,3 +169,23 @@ def choose_method(y_cal, pd_cal, slope_material: float) -> tuple[str, str]:
         return "intercept", (f"calibration intercept {a:+.3f} (s.e. {a_se:.3f}) differs significantly from 0, "
                              f"while the slope {b:.3f} is within {slope_material} of 1")
     return "none", f"calibration intercept {a:+.3f} (s.e. {a_se:.3f}) and slope {b:.3f} consistent with no change"
+
+
+def compare_methods(y_cal, pd_cal, y_test, pd_test, grade_test,
+                    methods=("none", "intercept", "intercept_slope"), slope_material: float = 0.10) -> dict:
+    """Choose the method on the calibration sample, then fit every method there and
+    evaluate each once on the test sample. Returns the choice, the fitted
+    recalibrators, a comparison table and expected-vs-observed deciles."""
+    from .validation import binomial_test_by_grade, discrimination
+
+    method, reason = choose_method(y_cal, pd_cal, slope_material)
+    recals = {m: Recalibrator(m).fit(y_cal, pd_cal) for m in methods}
+    rows, deciles = {}, {}
+    for m, r in recals.items():
+        p = r.transform(pd_test)
+        failing = binomial_test_by_grade(y_test, p, grade_test)["result"].str.startswith("RED").sum()
+        rows[m] = {"a": r.a, "b": r.b, **discrimination(y_test, p), **calibration_metrics(y_test, p),
+                   "grades_failing": int(failing)}
+        deciles[m] = decile_table(y_test, p)
+    return {"method": method, "reason": reason, "recalibrators": recals,
+            "table": pd.DataFrame(rows).T.rename_axis("method"), "deciles": deciles}

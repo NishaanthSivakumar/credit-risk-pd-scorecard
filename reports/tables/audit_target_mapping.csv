@@ -1,0 +1,9 @@
+loan_status,treatment,n_loans,share
+Fully Paid,non-default,532629,0.8574623009197175
+Charged Off,default,85955,0.13837619069850557
+Does not meet the credit policy. Status:Fully Paid,non-default,1789,0.0028800535764019132
+Does not meet the credit policy. Status:Charged Off,default,649,0.0010448042320205934
+Current,unresolved (excluded),72,0.00011591048490829388
+Late (31-120 days),unresolved (excluded),61,9.82019386028601e-05
+In Grace Period,unresolved (excluded),9,1.4488810613536735e-05
+Late (16-30 days),unresolved (excluded),5,8.049339229742631e-06

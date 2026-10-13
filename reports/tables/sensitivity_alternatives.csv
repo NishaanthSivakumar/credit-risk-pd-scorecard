@@ -1,0 +1,8 @@
+specification,train_loans,n_features,gini_oot,brier_oot,eo_ratio_oot,cal_slope_oot,features
+Baseline (as developed),122798,9,0.2960589089810841,0.12270312673039994,0.8854164836604079,0.9546131865535072,"fico, annual_inc, loan_to_income, inq_last_6mths, purpose, dti, revol_util, home_ownership, credit_hist_years"
+At most 5 starting bins,122798,8,0.292011164134508,0.12283771841500345,0.8841088814057393,0.9541264861463552,"fico, annual_inc, inq_last_6mths, loan_to_income, purpose, dti, revol_util, home_ownership"
+Minimum bin size 10%,122798,9,0.2925324829461662,0.12283298311960837,0.8856669718999673,0.9566530072076959,"fico, annual_inc, loan_to_income, inq_last_6mths, purpose, dti, revol_util, home_ownership, credit_hist_years"
+No monotonic constraint,122798,9,0.2960088582684961,0.12270407779749908,0.885451457033591,0.9540599323581498,"fico, annual_inc, loan_to_income, inq_last_6mths, purpose, dti, revol_util, home_ownership, credit_hist_years"
+Keep mostly-missing features (mort_acc),122798,9,0.2965908584284418,0.12267455178089956,0.8873738972880381,0.9443158248037072,"fico, annual_inc, loan_to_income, inq_last_6mths, mort_acc, purpose, dti, revol_util, home_ownership"
+Train on all 2007–13 loans,175426,8,0.2946061454248534,0.12273118960390933,0.8854005769068997,0.9626617934580912,"fico, annual_inc, loan_to_income, inq_last_6mths, revol_util, dti, purpose, home_ownership"
+Train on 2007–12 only (chronological),75004,7,0.281762264459789,0.12312633260631321,0.8777444881982707,0.9357109418668316,"fico, annual_inc, inq_last_6mths, revol_util, purpose, loan_to_income, dti"

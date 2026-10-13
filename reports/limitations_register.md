@@ -1,0 +1,19 @@
+# Model Limitations Register
+
+Known limitations of the PD scorecard and the portfolio engine built on it. Severity reflects the
+effect on the model's intended use: ranking applicants and estimating lifetime PDs for unsecured
+36-month consumer loans. The validation report reads this table.
+
+| ID | Limitation | Impact | Severity | Mitigation |
+|---|---|---|---|---|
+| L1 | Reject inference: only loans LendingClub approved are observed | PDs would be too low if applied to all applicants, because declined applicants are riskier than anyone in the data | High | Use the model only on populations that passed similar approval criteria; apply reject inference before any use on new applicants |
+| L2 | Lifetime PD, not 12-month PD | Cannot be used directly for Basel IRB capital or IFRS 9 stage 1 provisions, which need a 12-month PD | Medium | Portfolio risk measures are labelled as lifetime; a 12-month PD would need payment-level data |
+| L3 | No macroeconomic drivers (through-the-cycle) | PDs do not move with the economy; default rates rose from 10.6% (2011) to 14.9% (2015) without the model's inputs explaining the change | High | Recalibrate the intercept on recent vintages; monitor calibration-in-the-large each year; stress PDs through the portfolio engine |
+| L4 | Recalibration lags a drifting default rate | An intercept fitted on 2014 loans closes only about a quarter of the 2015 gap (−2.34 to −1.71 points); 6 of 7 grades still fail | High | Re-fit on the latest mature vintage and confirm on the next; test a time-varying intercept (Phase 3) |
+| L5 | Modest discrimination from application data only | Out-of-time Gini 0.296, below the 0.30 threshold, and weaker still for riskier borrowers (0.20 for FICO below 680); no detailed bureau history is available | Medium | Set cut-offs on observed bad rates; LendingClub's sub-grade (more data) ranks better; a gradient-boosting challenger gains only 0.022 |
+| L6 | Feature availability changed over time | `mort_acc` exists only from 2012 and was excluded; the challenger still uses it | Low | Feature screen drops inputs missing for more than 10% of training loans |
+| L7 | Few independent economic periods, none in a recession | 12 issue months in the out-of-time year, so the PD level is known less precisely than loan counts suggest; vintages with enough loans (2009–2015) imply a default correlation of only 0.004–0.013 | Medium | Report month-block intervals alongside loan-level ones; use the Basel retail correlation rather than the data estimate, with a sensitivity grid |
+| L8 | No protected attributes available | Fairness across protected groups cannot be tested; `addr_state` is excluded but other inputs may act as proxies | Medium | Subgroup performance by income, home ownership and purpose; no fairness claims are made |
+| L9 | Recoveries may be incomplete for recent charge-offs | Measured LGD may be overstated for later vintages | Low | LGD measured on 2007–2014 charge-offs and checked by issue year |
+| L10 | One-factor Gaussian dependence | No sector or regional factors, no tail dependence beyond ρ, LGD independent of the economy | Medium | Correlation sensitivity grid; stress scenarios (Phase 3) add downturn LGD and higher correlation |
+| L11 | Rare missing values get an unreliable WoE | A blank income, loan-to-income or inquiry count lowers the PD by 13–19%, because those bins were fitted on 4–24 training loans | Medium | Give any "Missing" bin below 5% of training loans the riskiest bin's WoE, or refer the application |

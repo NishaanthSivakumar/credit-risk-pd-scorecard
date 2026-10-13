@@ -60,7 +60,10 @@ correlation; the correlation assumption moves the 99% VaR from 10% to 21%.
 │   ├── 01_data_and_target.ipynb      sample definition, target, vintage analysis, splits
 │   ├── 02_woe_binning_iv.ipynb       WoE bins, IV ranking
 │   ├── 03_scorecard_model.ipynb      selection, logistic regression, points, challenger
-│   └── 04_model_validation.ipynb     discrimination, calibration, stability
+│   ├── 04_model_validation.ipynb     discrimination, calibration, stability
+│   ├── 05_recalibration_and_uncertainty.ipynb   recalibration, bootstrap intervals, challenger test
+│   ├── 06_sensitivity_and_decision.ipynb        data audit, sensitivity, validation decision
+│   └── 07_portfolio_risk.ipynb                  LGD/EAD, expected loss, Monte Carlo VaR/ES
 ├── src/pdmodel/
 │   ├── config.py        every setting (dates, thresholds, scaling) in one place
 │   ├── data.py          loading, target definition, feature engineering, splits
@@ -110,8 +113,12 @@ python -m pytest -q                      # unit tests
 
 The pipeline writes every table and figure plus the three reports, inserting the analysis from
 `reports/commentary.md` and `reports/portfolio_commentary.md`. Random seeds are fixed in
-`config.py`, so a re-run reproduces every number. The notebooks (01 → 04) walk through the
-development and validation steps; each saves what the next one needs to `data/processed/`.
+`config.py`, so a re-run reproduces every number.
+
+The notebooks (01 → 07) run the same steps one at a time and display every result, with the
+findings at the end of each. They call the code in `src/pdmodel/`, so the notebooks, the pipeline
+and the tests all use the same calculations. Run them in order: each saves what the next one needs
+to `data/processed/`.
 
 `python scripts/make_synthetic_data.py` writes a fake LendingClub-shaped file for testing the code
 without the real data (run the pipeline with

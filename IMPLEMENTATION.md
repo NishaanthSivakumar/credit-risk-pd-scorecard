@@ -7,6 +7,9 @@ status, the files that deliver it and how it is checked.
 
 **Scope:** credit risk modelling, model validation and credit portfolio risk.
 
+**Layout:** each phase gets a notebook that runs it step by step and displays every result; the
+calculations live in `src/pdmodel/`, where they are tested and shared with the pipeline.
+
 ---
 
 ## Progress summary
@@ -55,6 +58,7 @@ status, the files that deliver it and how it is checked.
 
 Deliverables:
 
+- `notebooks/06_sensitivity_and_decision.ipynb` (section 1): the audit run step by step
 - `reports/data_audit.md`: leakage audit, target definition and temporal validation methodology
 - `src/pdmodel/audit.py`: data-quality and leakage checks run by the pipeline
 - Updated preprocessing in `src/pdmodel/data.py`
@@ -81,7 +85,8 @@ Metrics: Gini, ROC-AUC, KS, Brier score, log loss, calibration intercept, calibr
 expected-to-observed ratio.
 
 Deliverables: recalibration module, calibration comparison plots, updated validation report and a
-recommendation on whether recalibration is appropriate.
+recommendation on whether recalibration is appropriate. Notebook:
+`notebooks/05_recalibration_and_uncertainty.ipynb`.
 
 ### 1.3 Statistical confidence intervals
 
@@ -93,7 +98,7 @@ recommendation on whether recalibration is appropriate.
 | Temporal dependence | ✅ | Block bootstrap by issue month (main result) plus loan-level bootstrap for comparison |
 
 Deliverables: bootstrap module, confidence-interval chart, statistical model comparison and an
-updated validation report.
+updated validation report. Notebook: `notebooks/05_recalibration_and_uncertainty.ipynb`.
 
 ### 1.4 Structured model validation
 
@@ -109,7 +114,8 @@ updated validation report.
 | Decision criteria for approve / conditionally approve / recalibrate / redevelop / reject | ✅ | Written down before being applied |
 
 Deliverables: updated validation report, `reports/limitations_register.md`, validation findings and
-the final model decision. This is a self-validation that follows the structure of an independent
+the final model decision. Notebook: `notebooks/06_sensitivity_and_decision.ipynb`. This is a
+self-validation that follows the structure of an independent
 review; the report says so.
 
 ### Phase 1 tests
@@ -153,7 +159,7 @@ losses that really happened.
 | Back-test against realised 2015 losses | ✅ | Predicted EL vs actual loss |
 
 Deliverables: expected loss module, EL by segment, concentration analysis and an EL summary in the
-portfolio risk report.
+portfolio risk report. Notebook: `notebooks/07_portfolio_risk.ipynb`.
 
 ### 2.2 Monte Carlo credit portfolio simulation
 
@@ -172,7 +178,7 @@ Metrics: expected loss, loss standard deviation, 95% and 99% VaR, 97.5% and 99% 
 and concentration measures, all over the 36-month lifetime.
 
 Deliverables: Monte Carlo engine, loss distribution plots, VaR and ES, correlation sensitivity and
-a convergence check, in `reports/portfolio_risk_report.md`.
+a convergence check, in `reports/portfolio_risk_report.md`. Notebook: `notebooks/07_portfolio_risk.ipynb`.
 
 ### Phase 2 tests
 
@@ -206,7 +212,7 @@ a convergence check, in `reports/portfolio_risk_report.md`.
 | Sensitivity to scenario assumptions | ⬜ | |
 | Document limitations | ⬜ | Scenarios are assumptions, not estimated macroeconomic relationships |
 
-Deliverables: stress-testing module, scenario comparison report, stressed loss distribution plots,
+Deliverables: `notebooks/08_stress_testing.ipynb`, stress-testing module, scenario comparison report, stressed loss distribution plots,
 portfolio vulnerability analysis. Tests: `tests/test_stress.py`.
 
 ---
@@ -235,7 +241,7 @@ portfolio vulnerability analysis. Tests: `tests/test_stress.py`.
 | Constraints: weights sum to 100%, segment limits, minimum/maximum allocations, concentration limits, optional EL limit | ⬜ |
 | Compare each strategy's expected and realised outcomes | ⬜ |
 
-Deliverables: optimisation module, strategy comparison, risk-return charts, allocation section of
+Deliverables: `notebooks/09_portfolio_optimisation.ipynb`, optimisation module, strategy comparison, risk-return charts, allocation section of
 the portfolio risk report. Tests: `tests/test_optimisation.py`.
 
 ---
@@ -263,7 +269,7 @@ the portfolio risk report. Tests: `tests/test_optimisation.py`.
 | Model limitations documentation | ⬜ |
 | Model governance checklist | ⬜ |
 
-Tests: `tests/test_monitoring.py`.
+Notebook: `notebooks/10_monitoring.ipynb`. Tests: `tests/test_monitoring.py`.
 
 ---
 

@@ -155,3 +155,31 @@ CORRELATION_GRID = [0.0, 0.02, 0.05, 0.10, 0.15, 0.20]
 CONCENTRATION_SIZES = [100, 500, 2_000, 10_000]
 PD_MULTIPLIERS = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5]
 LGD_SHIFTS = [-0.10, -0.05, 0.0, 0.05, 0.10]
+
+# --- Stress testing (lifetime, 36-month horizon) ------------------------------
+# economy_quantile: probability that the economy over the loans' life is at least
+#   this bad (0.10 = a 1-in-10 outcome); None = average economy (unconditional PDs).
+#   Anchor: LendingClub's 2007 and 2008 vintages, which ran through the 2008-09
+#   recession, imply roughly 1-in-10 and 1-in-6.5 (stress.implied_factor_by_vintage).
+# lgd_add / ead_add: downturn add-ons. Anchor: charge-offs from 2007-11 loans lost
+#   about 93% (vs 89% since), and those from 2007-10 loans owed 62-66% of the funded
+#   amount (vs 57% overall).
+# rho_mult: defaults move together more in a crisis.
+# rate_shock: rise in interest rates on revolving debt, passed through debt-to-income.
+STRESS_SCENARIOS = {
+    "Base": dict(),
+    "Mild recession": dict(economy_quantile=0.10, lgd_add=0.02, ead_add=0.03),
+    "Severe recession": dict(economy_quantile=0.02, lgd_add=0.04, ead_add=0.06, rho_mult=1.25),
+    "Interest rate shock": dict(economy_quantile=0.20, rate_shock=0.03),
+}
+# Low and high values for the tornado chart, around the severe recession.
+# pd_scale 1.13 undoes the 2015 calibration gap (expected-to-observed ratio 0.885).
+STRESS_SENSITIVITY = {
+    "economy_quantile": (0.04, 0.01),
+    "lgd_add": (0.0, 0.08),
+    "ead_add": (0.0, 0.10),
+    "rho_mult": (1.0, 1.5),
+    "pd_scale": (0.9, 1.13),
+}
+STRESS_CURVE_QUANTILES = [0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
+REVERSE_STRESS_THRESHOLDS = [0.08, 0.10, 0.15, 0.20]

@@ -1,5 +1,6 @@
 """End-to-end run: data -> audit -> scorecard -> challenger -> validation ->
-recalibration -> uncertainty -> sensitivity -> decision -> portfolio risk -> reports."""
+recalibration -> uncertainty -> sensitivity -> decision -> portfolio risk ->
+stress testing -> reports."""
 from __future__ import annotations
 
 import json
@@ -19,6 +20,7 @@ from . import config as C
 from . import portfolio as P
 from . import sensitivity as SE
 from . import simulation as MC
+from . import stress as ST
 from . import validation as V
 
 
@@ -183,6 +185,9 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
     vint = pd.concat([S[k].assign(pd=pdc[k]) for k in S], ignore_index=True)
     R["portfolio"] = run_portfolio(oot, pdc["oot"], grade["oot"], hist, cm.grade(hist), vint,
                                    n_sims, fig_dir, tab_dir)
+    say("   stress scenarios ...")
+    R["portfolio"]["stress"] = run_stress(R["portfolio"]["loans"], oot, cm, R["portfolio"]["rho_loans"], vint,
+                                          R["portfolio"]["rho_estimate"], n_sims, fig_dir, tab_dir)
     pnotes = reports.load_commentary(rd / "portfolio_commentary.md")
     (rd / "portfolio_risk_report.md").write_text(reports.portfolio_report(R["portfolio"], pnotes))
     C.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -209,12 +214,7 @@ def run_portfolio(oot: pd.DataFrame, pd_oot, grade_oot, hist: pd.DataFrame, grad
     q = vintages.assign(q=vintages["issue_d"].dt.to_period("Q")).groupby("q").agg(
         n=("default", "size"), observed_dr=("default", "mean"), mean_pd=("pd", "mean"))
     rho_est, rho_tab = MC.estimate_correlation(q)
-    if C.ASSET_CORRELATION == "basel_retail":
-        rho = MC.basel_retail_correlation(MC.annualised_pd(port["pd"].to_numpy(), C.TERM_YEARS))
-    elif C.ASSET_CORRELATION == "estimate":
-        rho = rho_est["rho_mix_adjusted"]
-    else:
-        rho = float(C.ASSET_CORRELATION)
+    rho = asset_correlation(port["pd"].to_numpy(), rho_est)
     rho_avg = float(np.average(np.broadcast_to(rho, len(port)), weights=port["ead"]))
 
     pdv, lgd, ead = port["pd"].to_numpy(), port["lgd"].to_numpy(), port["ead"].to_numpy()
@@ -281,6 +281,81 @@ def run_portfolio(oot: pd.DataFrame, pd_oot, grade_oot, hist: pd.DataFrame, grad
     conv_pct.to_csv(tab_dir / "portfolio_mc_convergence.csv")
     conc_sim.to_csv(tab_dir / "portfolio_concentration_simulation.csv")
     rho_tab.to_csv(tab_dir / "portfolio_vintage_default_rates.csv")
+    return out
+
+
+def asset_correlation(pd_, rho_est: dict | None = None):
+    """Asset correlation per loan, as set by C.ASSET_CORRELATION."""
+    if C.ASSET_CORRELATION == "basel_retail":
+        return MC.basel_retail_correlation(MC.annualised_pd(np.asarray(pd_, float), C.TERM_YEARS))
+    if C.ASSET_CORRELATION == "estimate":
+        return rho_est["rho_mix_adjusted"]
+    return float(C.ASSET_CORRELATION)
+
+
+def run_stress(port: pd.DataFrame, oot: pd.DataFrame, model, rho, vintages: pd.DataFrame, rho_est: dict,
+               n_sims: int, fig_dir: Path, tab_dir: Path) -> dict:
+    """Macroeconomic stress scenarios on the 2015 book: expected loss, stressed loss
+    distributions, vulnerability by segment, sensitivity, reverse stress test and the
+    historical anchor. Every scenario uses the same random draws, so the base case
+    reproduces the portfolio-risk results and differences are pure scenario effects."""
+    scen = ST.scenarios_from_config(C.STRESS_SCENARIOS)
+    inputs = {s.name: ST.stressed_inputs(port, oot, model, rho, s) for s in scen}
+    table = ST.scenario_table(port, inputs, scen)
+    exp = port["exposure"].sum()
+    losses, risk = ST.simulate_scenarios(inputs, exp, n_sims, C.MC_SEED, C.VAR_LEVELS, C.ES_LEVELS)
+    table["base_distribution_percentile"] = [float((losses["Base"] <= v).mean()) for v in table["expected_loss"]]
+
+    rate = next(s for s in scen if s.rate_shock)
+    severe = max(scen, key=lambda s: table.loc[s.name, "expected_loss"])
+    rate_parts = pd.Series({
+        "Base": table.loc["Base", "el_rate"],
+        f"Payment channel only (+{rate.rate_shock * 1e4:.0f}bp)": ST.el_rate(
+            port, oot, model, rho, ST.Scenario("payment", rate_shock=rate.rate_shock)),
+        f"Economy only (1 in {rate.return_period:g})": ST.el_rate(
+            port, oot, model, rho, ST.Scenario("economy", economy_quantile=rate.economy_quantile)),
+        "Both (scenario)": table.loc[rate.name, "el_rate"],
+    }, name="el_rate")
+    dti_rise = (ST.apply_rate_shock(oot, rate.rate_shock)["dti"] - oot["dti"]).describe(percentiles=[0.5, 0.9])
+
+    vul = {by: ST.segment_vulnerability(port, inputs["Base"], inputs[severe.name], by)
+           for by in ("grade", "purpose", "size_band")}
+    sens = ST.sensitivity(port, oot, model, rho, severe, C.STRESS_SENSITIVITY)
+    curves = {"Model PDs, base LGD and EAD": ST.economy_curve(port, rho, C.STRESS_CURVE_QUANTILES),
+              "With severe-scenario LGD, EAD and correlation": ST.economy_curve(
+                  port, rho, C.STRESS_CURVE_QUANTILES, severe.lgd_add, severe.ead_add, severe.rho_mult)}
+    reverse = pd.concat({
+        "base LGD and EAD": ST.reverse_stress(port, rho, C.REVERSE_STRESS_THRESHOLDS),
+        "downturn LGD, EAD and correlation": ST.reverse_stress(
+            port, rho, C.REVERSE_STRESS_THRESHOLDS, severe.lgd_add, severe.ead_add, severe.rho_mult)}, axis=1)
+    anchor = ST.implied_factor_by_vintage(vintages, vintages["pd"].to_numpy(),
+                                          asset_correlation(vintages["pd"].to_numpy(), rho_est))
+
+    params = pd.DataFrame([{"scenario": s.name,
+                            "economy": "average" if s.z is None else f"1 in {s.return_period:g}",
+                            "z": s.z, "lgd_add": s.lgd_add, "ead_add": s.ead_add, "rho_mult": s.rho_mult,
+                            "rate_shock": s.rate_shock} for s in scen]).set_index("scenario")
+    points = {s.name: (s.economy_quantile, table.loc[s.name, "el_rate"]) for s in scen if s.z is not None}
+    _save(plots.stress_distributions({k: v / exp * 100 for k, v in losses.items()}),
+          fig_dir / "stress_loss_distributions.png")
+    _save(plots.economy_curve_plot(curves, points), fig_dir / "stress_economy_curve.png")
+    _save(plots.tornado_plot(sens), fig_dir / "stress_sensitivity.png")
+    _save(plots.implied_factor_plot(anchor), fig_dir / "stress_implied_economy.png")
+    _save(plots.vulnerability_plot(vul["grade"], severe.name), fig_dir / "stress_vulnerability_by_grade.png")
+
+    out = {"params": params, "table": table, "risk": risk, "rate_parts": rate_parts, "dti_rise": dti_rise,
+           "vulnerability": vul, "sensitivity": sens, "curves": pd.DataFrame(curves), "reverse": reverse,
+           "anchor": anchor, "severe": severe.name, "rate": rate.name, "n_sims": n_sims}
+    params.to_csv(tab_dir / "stress_scenarios.csv")
+    table.to_csv(tab_dir / "stress_expected_loss.csv")
+    risk.to_csv(tab_dir / "stress_risk_measures.csv")
+    rate_parts.to_csv(tab_dir / "stress_rate_shock_decomposition.csv")
+    for by, t in vul.items():
+        t.to_csv(tab_dir / f"stress_vulnerability_by_{by}.csv")
+    sens.to_csv(tab_dir / "stress_sensitivity.csv")
+    out["curves"].to_csv(tab_dir / "stress_economy_curve.csv")
+    reverse.to_csv(tab_dir / "stress_reverse.csv")
+    anchor.to_csv(tab_dir / "stress_implied_economy_by_vintage.csv")
     return out
 
 

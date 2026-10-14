@@ -555,11 +555,142 @@ Random sub-portfolios of the 2015 book, same ρ (share of funded amount, %):
 
 {_note(notes, "concentration")}
 
-## 7. Risk management implications
+{_stress_section(P["stress"], notes) if "stress" in P else ""}
+## 8. Risk management implications
 
 {_note(notes, "implications")}
 
-## 8. Model assumptions and limitations
+## 9. Model assumptions and limitations
 
 {_note(notes, "limitations")}
+"""
+
+
+def _stress_section(T: dict, notes: dict) -> str:
+    params = T["params"].copy()
+    params["z"] = params["z"].map(lambda v: "" if pd.isna(v) else f"{v:+.2f}")
+    pct_pts = lambda v: "" if v == 0 else f"+{v * 100:.0f} pts"
+    t = T["table"]
+    risk = T["risk"][["expected_loss", "std", "var_0.95", "var_0.99", "es_0.975", "es_0.99"]]
+    anchor = T["anchor"]
+    d = T["dti_rise"]
+    sens = T["sensitivity"][["central", "low", "high", "el_rate_low", "el_rate_central", "el_rate_high"]]
+    vul_fmt = {"exposure_share": PCT1, "el_rate_base": PCT, "el_rate_stress": PCT, "multiple": "×{:.2f}".format,
+               "share_of_increase": PCT1}
+    purpose = T["vulnerability"]["purpose"].sort_values("exposure_share", ascending=False).head(8)
+    curves = T["curves"].copy()
+    curves.index = [f"1 in {1 / q:.3g}" for q in curves.index]
+    curves.index.name = "economy"
+    rev = T["reverse"].copy()
+    rev.columns = [f"{a}: {b}" for a, b in rev.columns]
+    rev = rev[[c for c in rev.columns if c.endswith("return_period_years") or c.endswith("economy_quantile")]]
+    rev.index = [f"{v:.0%}" for v in rev.index]
+    rev.index.name = "lifetime loss reaches"
+    return f"""## 7. Macroeconomic stress testing
+
+Each scenario sets how bad the economy is over the loans' life, through the portfolio model's
+economy factor z, and turns each loan's PD into its PD *given* that economy (Vasicek):
+PD(z) = Φ((Φ⁻¹(PD) − √ρ·z) / √(1 − ρ)). The base case is the average over all economies, as in
+sections 2–4. Severities and add-ons are assumptions, anchored to LendingClub's own history where
+possible; they are not estimated macroeconomic relationships.
+
+### 7.1 Scenarios
+
+{md(params, {"lgd_add": pct_pts, "ead_add": pct_pts, "rho_mult": "×{:.2f}".format,
+             "rate_shock": lambda v: "" if v == 0 else f"+{v * 1e4:.0f}bp"})}
+
+- `economy`: how rare an economy at least this bad is over a 36-month loan life.
+- `lgd_add`, `ead_add`: downturn add-ons to LGD and to the share of principal owed at default.
+- `rho_mult`: multiplier on the asset correlation.
+- `rate_shock`: rise in interest rates on borrowers' revolving debt, passed through the scorecard via
+  debt-to-income.
+
+{_note(notes, "stress scenarios")}
+
+### 7.2 Historical anchor
+
+The economy factor at which the model's PDs reproduce each vintage's actual default rate:
+
+{md(anchor, {"loans": INT, "observed_dr": PCT, "mean_pd": PCT, "implied_z": "{:+.2f}".format,
+             "economy_quantile": PCT1, "return_period_years": lambda v: "" if pd.isna(v) else f"1 in {v:.1f}"})}
+
+![Implied economy by vintage](figures/stress_implied_economy.png)
+
+{_note(notes, "historical anchor")}
+
+### 7.3 Expected loss under each scenario
+
+{md(t[["economy", "mean_pd", "expected_defaults", "expected_loss", "el_rate", "vs_base",
+       "base_distribution_percentile"]],
+    {"mean_pd": PCT, "expected_defaults": INT, "expected_loss": USD, "el_rate": PCT,
+     "vs_base": "×{:.2f}".format, "base_distribution_percentile": PCT1})}
+
+`base_distribution_percentile`: where the scenario's loss falls in the base-case loss distribution.
+
+![Expected loss as the economy worsens](figures/stress_economy_curve.png)
+
+{_note(notes, "stress results")}
+
+### 7.4 Stressed loss distributions
+
+Loss distribution with each scenario's PDs, LGD, EAD and correlation as the starting point, and
+the economy still uncertain from there ({T["n_sims"]:,} scenarios each, % of funded amount):
+
+{md(risk, {c: F3 for c in risk.columns})}
+
+![Stressed loss distributions](figures/stress_loss_distributions.png)
+
+{_note(notes, "stressed distributions")}
+
+### 7.5 Interest rate shock
+
+A {C.STRESS_SCENARIOS[T["rate"]]["rate_shock"] * 1e4:.0f}bp rise in rates on revolving debt raises
+debt-to-income by {d["50%"]:.2f} points for the median borrower ({d["90%"]:.2f} at the 90th percentile).
+Expected loss rate by channel:
+
+{md(T["rate_parts"].to_frame(), {"el_rate": PCT})}
+
+{_note(notes, "rate shock")}
+
+### 7.6 Portfolio vulnerability
+
+{T["severe"]} against the base case, by rating grade:
+
+{md(T["vulnerability"]["grade"], vul_fmt)}
+
+![Vulnerability by grade](figures/stress_vulnerability_by_grade.png)
+
+By loan purpose (largest eight by exposure):
+
+{md(purpose, vul_fmt)}
+
+By loan size:
+
+{md(T["vulnerability"]["size_band"], vul_fmt)}
+
+{_note(notes, "vulnerability")}
+
+### 7.7 Sensitivity to the scenario assumptions
+
+{T["severe"]}, one assumption moved at a time (expected loss rate):
+
+{md(sens, {"central": "{:g}".format, "low": "{:g}".format, "high": "{:g}".format,
+           "el_rate_low": PCT, "el_rate_central": PCT, "el_rate_high": PCT})}
+
+![Sensitivity](figures/stress_sensitivity.png)
+
+Expected loss rate across economies:
+
+{md(curves, {c: PCT for c in curves.columns})}
+
+{_note(notes, "stress sensitivity")}
+
+### 7.8 Reverse stress test
+
+How rare an economy would have to be for lifetime losses to reach each level:
+
+{md(rev, {c: ((lambda v: f"{v:.3%}" if v < 0.001 else f"{v:.1%}") if c.endswith("quantile")
+              else (lambda v: "not reached" if pd.isna(v) else f"1 in {v:,.0f}")) for c in rev.columns})}
+
+{_note(notes, "reverse stress")}
 """

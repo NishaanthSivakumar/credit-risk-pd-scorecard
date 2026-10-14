@@ -11,6 +11,9 @@ INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 SAMPLE_COLORS = {"train": BLUE, "test": AQUA, "calib": MUTED, "oot": ORANGE}
 METHOD_COLORS = {"none": ORANGE, "intercept": BLUE, "intercept_slope": AQUA}
 MODEL_COLORS = {"scorecard": BLUE, "challenger": ORANGE}
+PURPLE = "#7d5bd6"
+SCENARIO_COLORS = {"Base": BLUE, "Mild recession": AQUA, "Severe recession": ORANGE,
+                   "Interest rate shock": PURPLE}
 
 plt.rcParams.update({
     "figure.dpi": 110, "savefig.dpi": 150, "savefig.bbox": "tight",
@@ -190,6 +193,92 @@ def el_by_grade(table, ax=None):
     ax.set_xticks(x, [str(g) for g in table.index])
     ax.set(xlabel="Rating grade (1 = best)", ylabel="Loss (% of funded amount)",
            title="Expected vs realised lifetime loss by grade")
+    ax.grid(axis="x", visible=False)
+    ax.legend()
+    return ax
+
+
+def stress_distributions(losses_pct: dict, ax=None, title="Lifetime loss distribution by scenario"):
+    """Overlaid loss distributions (% of funded amount), one outline per scenario."""
+    ax = ax or plt.subplots(figsize=(6.8, 4))[1]
+    hi = max(np.percentile(v, 99.9) for v in losses_pct.values())
+    bins = np.linspace(0, hi, 90)
+    for name, v in losses_pct.items():
+        c = SCENARIO_COLORS.get(name, MUTED)
+        ax.hist(v, bins=bins, histtype="step", lw=2, color=c, density=True)
+        ax.axvline(np.quantile(v, 0.99), color=c, lw=1, ls="--")
+        ax.plot([], [], color=c, lw=2, label=f"{name}  (VaR 99% {np.quantile(v, 0.99):.1f}%)")
+    ax.set(xlabel="Portfolio loss (% of funded amount)", ylabel="Density", title=title)
+    ax.set_yticks([])
+    ax.grid(axis="x", visible=False)
+    ax.legend(loc="upper right", fontsize=8)
+    return ax
+
+
+def economy_curve_plot(curves: dict, points: dict | None = None, ax=None,
+                       title="Expected loss as the economy worsens"):
+    """curves: {label: Series of EL rate indexed by economy quantile}; points: {label: (quantile, el_rate)}."""
+    ax = ax or plt.subplots(figsize=(6.8, 4.2))[1]
+    for (label, s), c in zip(curves.items(), [BLUE, ORANGE, AQUA]):
+        ax.plot(1 / s.index.to_numpy(), s.to_numpy() * 100, marker="o", ms=4, color=c, label=label)
+    for label, (q, v) in (points or {}).items():
+        c = SCENARIO_COLORS.get(label, INK)
+        ax.plot(1 / q, v * 100, "D", ms=8, color=c, mec="white")
+        ax.annotate(label, (1 / q, v * 100), textcoords="offset points", xytext=(6, -12), fontsize=8, color=c)
+    ax.set_xscale("log")
+    ax.set(xlabel="Economy: one-in-N outcome over the loans' life", ylabel="Expected loss (% of funded amount)",
+           title=title)
+    ax.legend(loc="upper left")
+    return ax
+
+
+def tornado_plot(table, ax=None, title="Severe recession: sensitivity to each assumption"):
+    """table from stress.sensitivity (one row per assumption). Blue = low value, orange = high."""
+    ax = ax or plt.subplots(figsize=(7.2, 3.8))[1]
+    names = {"economy_quantile": ("economy", lambda v: f"1 in {1 / v:g}"),
+             "pd_scale": ("PD level", lambda v: f"×{v:g}"),
+             "ead_add": ("EAD add-on", lambda v: f"+{v * 100:.0f} pts"),
+             "lgd_add": ("LGD add-on", lambda v: f"+{v * 100:.0f} pts"),
+             "rho_mult": ("correlation", lambda v: f"×{v:g}")}
+    t = table.iloc[::-1]
+    y = np.arange(len(t))
+    centre = t["el_rate_central"].iloc[0] * 100
+    labels = []
+    for yi, r in zip(y, t.itertuples()):
+        ax.barh(yi, r.el_rate_low * 100 - centre, left=centre, color=BLUE, height=0.6)
+        ax.barh(yi, r.el_rate_high * 100 - centre, left=centre, color=ORANGE, height=0.6)
+        name, f = names.get(r.Index, (r.Index.replace("_", " "), "{:g}".format))
+        labels.append(f"{name}\n{f(r.low)} to {f(r.high)}")
+    ax.axvline(centre, color=INK, lw=1)
+    ax.set_yticks(y, labels, fontsize=8)
+    ax.set(xlabel="Expected loss (% of funded amount)", title=title)
+    ax.grid(axis="y", visible=False)
+    return ax
+
+
+def implied_factor_plot(table, ax=None, title="Economy implied by each vintage's default rate"):
+    """table from stress.implied_factor_by_vintage."""
+    ax = ax or plt.subplots(figsize=(6.4, 3.8))[1]
+    z = table["implied_z"]
+    ax.bar(z.index.astype(str), z.to_numpy(), color=[ORANGE if v < 0 else BLUE for v in z], width=0.7)
+    ax.axhline(0, color=INK, lw=1)
+    ax.set(xlabel="Issue year", ylabel="Implied economy factor z (negative = worse)", title=title)
+    ax.grid(axis="x", visible=False)
+    return ax
+
+
+def vulnerability_plot(table, label="Severe recession", ax=None,
+                       title="Expected loss by grade, base vs severe recession"):
+    """table from stress.segment_vulnerability by grade."""
+    ax = ax or plt.subplots(figsize=(6.4, 4))[1]
+    x = np.arange(len(table))
+    ax.bar(x - 0.2, table["el_rate_base"] * 100, width=0.4, color=BLUE, label="Base")
+    ax.bar(x + 0.2, table["el_rate_stress"] * 100, width=0.4, color=ORANGE, label=label)
+    for xi, m in zip(x, table["multiple"]):
+        ax.text(xi + 0.2, table["el_rate_stress"].iloc[xi] * 100, f"×{m:.1f}", ha="center", va="bottom",
+                fontsize=8, color=MUTED)
+    ax.set_xticks(x, [str(g) for g in table.index])
+    ax.set(xlabel="Rating grade (1 = best)", ylabel="Expected loss (% of funded amount)", title=title)
     ax.grid(axis="x", visible=False)
     ax.legend()
     return ax

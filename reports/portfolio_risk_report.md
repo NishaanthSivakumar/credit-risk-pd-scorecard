@@ -321,7 +321,239 @@ The one-factor model cannot see the purpose concentration: every loan shares the
 factor, so a book made entirely of debt-consolidation loans would show no extra correlation. A
 model with sector factors would be needed to price that risk.
 
-## 7. Risk management implications
+## 7. Macroeconomic stress testing
+
+Each scenario sets how bad the economy is over the loans' life, through the portfolio model's
+economy factor z, and turns each loan's PD into its PD *given* that economy (Vasicek):
+PD(z) = Φ((Φ⁻¹(PD) − √ρ·z) / √(1 − ρ)). The base case is the average over all economies, as in
+sections 2–4. Severities and add-ons are assumptions, anchored to LendingClub's own history where
+possible; they are not estimated macroeconomic relationships.
+
+### 7.1 Scenarios
+
+| scenario | economy | z | lgd_add | ead_add | rho_mult | rate_shock |
+|---|---|---|---|---|---|---|
+| Base | average |  |  |  | ×1.00 |  |
+| Mild recession | 1 in 10 | -1.28 | +2 pts | +3 pts | ×1.00 |  |
+| Severe recession | 1 in 50 | -2.05 | +4 pts | +6 pts | ×1.25 |  |
+| Interest rate shock | 1 in 5 | -0.84 |  |  | ×1.00 | +300bp |
+
+- `economy`: how rare an economy at least this bad is over a 36-month loan life.
+- `lgd_add`, `ead_add`: downturn add-ons to LGD and to the share of principal owed at default.
+- `rho_mult`: multiplier on the asset correlation.
+- `rate_shock`: rise in interest rates on borrowers' revolving debt, passed through the scorecard via
+  debt-to-income.
+
+- **Mild recession:** a 1-in-10 economy over the loans' life, about what LendingClub's 2007 loans
+  went through (section 7.2). Unemployment rises moderately, recoveries worsen slightly (LGD +2
+  points) and loans default earlier, with more principal still owed (EAD +3 points).
+- **Severe recession:** a 1-in-50 economy, worse than anything in LendingClub's history. LGD and
+  EAD return to the levels seen on 2007–10 loans (+4 and +6 points), and defaults move together
+  more (correlation ×1.25).
+- **Interest rate shock:** rates on borrowers' revolving debt rise by 300bp, which raises their
+  debt-to-income and feeds through the scorecard, alongside the 1-in-5 slowdown that sharply
+  tighter policy usually brings. LGD and EAD are unchanged.
+
+The scenarios describe unemployment and borrowing costs, but the model does not translate
+unemployment into the economy factor: nine annual vintages, one of them in a recession, are not
+enough to estimate that relationship. Each scenario is set by how rare it is instead, which is
+how the portfolio model measures the economy.
+
+### 7.2 Historical anchor
+
+The economy factor at which the model's PDs reproduce each vintage's actual default rate:
+
+| issue_year | loans | observed_dr | mean_pd | implied_z | economy_quantile | return_period_years |
+|---|---|---|---|---|---|---|
+| 2007 | 603 | 26.20% | 18.96% | -1.31 | 9.5% | 1 in 10.6 |
+| 2008 | 2,393 | 20.73% | 15.63% | -1.02 | 15.5% | 1 in 6.5 |
+| 2009 | 5,281 | 13.69% | 13.03% | -0.28 | 38.9% | 1 in 2.6 |
+| 2010 | 9,156 | 10.92% | 12.30% | +0.16 | 56.2% |  |
+| 2011 | 14,101 | 10.63% | 11.39% | +0.01 | 50.3% |  |
+| 2012 | 43,470 | 13.58% | 13.53% | -0.15 | 44.1% | 1 in 2.3 |
+| 2013 | 100,422 | 12.33% | 13.42% | +0.09 | 53.5% |  |
+| 2014 | 162,570 | 13.73% | 13.73% | -0.14 | 44.5% | 1 in 2.2 |
+| 2015 | 283,026 | 14.89% | 13.18% | -0.47 | 31.8% | 1 in 3.1 |
+
+![Implied economy by vintage](figures/stress_implied_economy.png)
+
+The 2007 and 2008 vintages, issued just before and during the 2008–09 recession, default at
+rates that imply 1-in-10.6 and 1-in-6.5 economies. By this measure the recession, as LendingClub's
+borrowers experienced it, was roughly a 1-in-10 event, which is where the mild scenario sits; the
+severe scenario goes well beyond anything in the data. The anchor is rough: the two vintages are
+small (603 and 2,393 loans), they come from LendingClub's first years, when underwriting was
+different, and the implied factor absorbs anything else that moved their default rates.
+
+2015 implies a 1-in-3.1 economy: worse than average, although US unemployment fell throughout
+2015–18. This is the drift found in the validation, seen through the portfolio model.
+The realised 2015 loss of 7.56% sits between the 1-in-3.3 and 1-in-5 points of the economy curve,
+which matches.
+
+### 7.3 Expected loss under each scenario
+
+|  | economy | mean_pd | expected_defaults | expected_loss | el_rate | vs_base | base_distribution_percentile |
+|---|---|---|---|---|---|---|---|
+| Base | average | 13.18% | 37,304 | $230.2m | 6.35% | ×1.00 | 55.7% |
+| Mild recession | 1 in 10 | 19.72% | 55,821 | $373.9m | 10.32% | ×1.62 | 93.2% |
+| Severe recession | 1 in 50 | 27.02% | 76,486 | $554.3m | 15.29% | ×2.41 | 99.7% |
+| Interest rate shock | 1 in 5 | 17.05% | 48,264 | $299.4m | 8.26% | ×1.30 | 80.3% |
+
+`base_distribution_percentile`: where the scenario's loss falls in the base-case loss distribution.
+
+![Expected loss as the economy worsens](figures/stress_economy_curve.png)
+
+**A mild recession raises lifetime expected loss from 6.35% to 10.32% of funded amount (×1.6);
+a severe recession to 15.29% (×2.4), or $554m against $230m.** The interest rate shock gives 8.26%
+(×1.3), almost all of it from the slower economy rather than the higher payments (section 7.5).
+
+The severe-recession loss lies at the 99.7th percentile of the base-case distribution, beyond the
+base 99% VaR of 13.45%. Capital sized on the base 99% VaR would absorb a mild recession, but not a
+severe one with downturn LGD and EAD: on the downturn curve, 13.45% corresponds to roughly a
+1-in-20 economy, not 1-in-100.
+
+### 7.4 Stressed loss distributions
+
+Loss distribution with each scenario's PDs, LGD, EAD and correlation as the starting point, and
+the economy still uncertain from there (20,000 scenarios each, % of funded amount):
+
+|  | expected_loss | std | var_0.95 | var_0.99 | es_0.975 | es_0.99 |
+|---|---|---|---|---|---|---|
+| Base | 6.361 | 2.426 | 10.874 | 13.449 | 13.608 | 15.044 |
+| Mild recession | 10.328 | 3.492 | 16.710 | 20.080 | 20.225 | 22.010 |
+| Severe recession | 15.311 | 5.143 | 24.632 | 29.158 | 29.294 | 31.578 |
+| Interest rate shock | 8.272 | 2.922 | 13.652 | 16.581 | 16.725 | 18.307 |
+
+![Stressed loss distributions](figures/stress_loss_distributions.png)
+
+If the book entered each scenario and the economy were still uncertain from there, the 99% VaR
+would rise from 13.4% of funded amount (base) to 16.6% (rate shock), 20.1% (mild) and 29.2%
+(severe). These figures answer "how bad could it get from here?", so they stack the scenario's
+stress on top of further downside. They are the stressed counterpart of the base VaR, not an
+estimate of the scenario's own loss, which is the expected loss in section 7.3.
+
+### 7.5 Interest rate shock
+
+A 300bp rise in rates on revolving debt raises
+debt-to-income by 0.54 points for the median borrower (1.35 at the 90th percentile).
+Expected loss rate by channel:
+
+|  | el_rate |
+|---|---|
+| Base | 6.35% |
+| Payment channel only (+300bp) | 6.39% |
+| Economy only (1 in 5) | 8.21% |
+| Both (scenario) | 8.26% |
+
+The direct channel barely registers: a 300bp rise on revolving debt adds 0.54 points to the median
+borrower's debt-to-income, and lifts expected loss from 6.35% to 6.39%. LendingClub loans are
+fixed-rate and its debt-to-income excludes mortgages, so higher rates do not reach most of these
+borrowers' payments. Almost all of the scenario's impact (8.21% of the 8.26%) comes from the
+economic slowdown that a sharp rate rise brings. A rate shock is a risk to this book through
+unemployment, not through payments. The channel modelled here is the narrowest one: variable-rate
+mortgages and other floating debt are not in the data.
+
+### 7.6 Portfolio vulnerability
+
+Severe recession against the base case, by rating grade:
+
+| grade | exposure_share | el_rate_base | el_rate_stress | multiple | share_of_increase |
+|---|---|---|---|---|---|
+| 1 | 16.7% | 2.30% | 8.81% | ×3.83 | 12.1% |
+| 2 | 16.5% | 3.75% | 11.70% | ×3.12 | 14.7% |
+| 3 | 15.5% | 4.93% | 13.61% | ×2.76 | 15.1% |
+| 4 | 14.2% | 6.11% | 15.31% | ×2.50 | 14.6% |
+| 5 | 13.4% | 7.48% | 17.13% | ×2.29 | 14.5% |
+| 6 | 12.5% | 9.55% | 19.96% | ×2.09 | 14.5% |
+| 7 | 11.2% | 13.61% | 25.18% | ×1.85 | 14.4% |
+
+![Vulnerability by grade](figures/stress_vulnerability_by_grade.png)
+
+By loan purpose (largest eight by exposure):
+
+| purpose | exposure_share | el_rate_base | el_rate_stress | multiple | share_of_increase |
+|---|---|---|---|---|---|
+| debt_consolidation | 59.0% | 6.88% | 16.09% | ×2.34 | 60.7% |
+| credit_card | 27.0% | 5.14% | 13.54% | ×2.63 | 25.4% |
+| home_improvement | 5.7% | 4.60% | 12.66% | ×2.75 | 5.2% |
+| other | 3.5% | 8.59% | 18.41% | ×2.14 | 3.9% |
+| major_purchase | 1.5% | 4.18% | 11.95% | ×2.86 | 1.3% |
+| small_business | 0.9% | 11.32% | 22.02% | ×1.95 | 1.1% |
+| medical | 0.6% | 8.09% | 17.76% | ×2.19 | 0.7% |
+| car | 0.6% | 4.79% | 12.94% | ×2.70 | 0.6% |
+
+By loan size:
+
+| size_band | exposure_share | el_rate_base | el_rate_stress | multiple | share_of_increase |
+|---|---|---|---|---|---|
+| ≤ $5k | 4.7% | 7.31% | 16.71% | ×2.29 | 4.9% |
+| $5k–10k | 21.5% | 7.25% | 16.58% | ×2.29 | 22.5% |
+| $10k–15k | 20.5% | 6.87% | 16.02% | ×2.33 | 21.0% |
+| $15k–25k | 32.9% | 6.06% | 14.87% | ×2.46 | 32.4% |
+| > $25k | 20.4% | 5.14% | 13.55% | ×2.64 | 19.2% |
+
+- *By grade:* the safest borrowers are hit hardest in relative terms: grade 1's expected loss
+  rises 3.8 times, grade 7's 1.9 times. Each grade contributes 12–15% of the extra loss, although
+  grade 7 alone holds 24% of the base expected loss. A recession spreads losses across the book,
+  so a high-quality book offers less protection than its base expected loss suggests.
+- *By purpose:* debt consolidation accounts for 61% of the extra loss (59% of exposure).
+  Credit-card refinancing loans are more sensitive (×2.6) than debt consolidation (×2.3), because
+  their borrowers are safer to start with.
+- *By size:* loans above $25k rise most (×2.6, against ×2.3 for loans under $10k). That compounds
+  the validation finding that these loans' PDs are already the most understated.
+
+### 7.7 Sensitivity to the scenario assumptions
+
+Severe recession, one assumption moved at a time (expected loss rate):
+
+| assumption | central | low | high | el_rate_low | el_rate_central | el_rate_high |
+|---|---|---|---|---|---|---|
+| economy_quantile | 0.02 | 0.04 | 0.01 | 13.74% | 15.29% | 16.78% |
+| pd_scale | 1 | 0.9 | 1.13 | 14.09% | 15.29% | 16.81% |
+| ead_add | 0.06 | 0 | 0.1 | 13.84% | 15.29% | 16.26% |
+| rho_mult | 1.25 | 1 | 1.5 | 14.28% | 15.29% | 16.25% |
+| lgd_add | 0.04 | 0 | 0.08 | 14.64% | 15.29% | 15.95% |
+
+![Sensitivity](figures/stress_sensitivity.png)
+
+Expected loss rate across economies:
+
+| economy | Model PDs, base LGD and EAD | With severe-scenario LGD, EAD and correlation |
+|---|---|---|
+| 1 in 2 | 6.00% | 6.82% |
+| 1 in 3.33 | 7.32% | 8.53% |
+| 1 in 5 | 8.21% | 9.71% |
+| 1 in 10 | 9.59% | 11.54% |
+| 1 in 20 | 10.84% | 13.22% |
+| 1 in 50 | 12.37% | 15.29% |
+| 1 in 100 | 13.46% | 16.78% |
+| 1 in 200 | 14.51% | 18.21% |
+| 1 in 500 | 15.83% | 20.01% |
+| 1 in 1e+03 | 16.80% | 21.33% |
+
+Two assumptions matter most for the severe scenario. **Severity** (1-in-25 to 1-in-100) moves the
+expected loss between 13.7% and 16.8%. The **PD level** moves it between 14.1% and 16.8%: removing
+the 2015 calibration gap (PDs ×1.13) adds as much loss as moving from a 1-in-50 to a 1-in-100
+economy. The downturn EAD (13.8–16.3%) and correlation (14.3–16.3%) come next. LGD matters least
+(14.6–16.0%) because it is already close to 100%.
+
+### 7.8 Reverse stress test
+
+How rare an economy would have to be for lifetime losses to reach each level:
+
+| lifetime loss reaches | base LGD and EAD: economy_quantile | base LGD and EAD: return_period_years | downturn LGD, EAD and correlation: economy_quantile | downturn LGD, EAD and correlation: return_period_years |
+|---|---|---|---|---|
+| 8% | 22.1% | 1 in 5 | 35.5% | 1 in 3 |
+| 10% | 8.0% | 1 in 12 | 18.0% | 1 in 6 |
+| 15% | 0.4% | 1 in 280 | 2.3% | 1 in 44 |
+| 20% | 0.009% | 1 in 11,606 | 0.2% | 1 in 497 |
+
+Lifetime losses reach 10% of funded amount in a 1-in-12 economy with today's LGD and EAD, or a
+1-in-6 economy with downturn LGD, EAD and correlation. 15% needs a 1-in-280 economy, or 1-in-44
+with downturn assumptions. 20% needs a 1-in-11,606 or 1-in-497 economy. The downturn assumptions
+shorten these return periods by a factor of 2 to 23, so they matter as much as the severity of the
+economy itself.
+
+## 8. Risk management implications
 
 1. **Expected loss is understated by about 16%** (it would have needed to be 19% higher to match
    the realised loss) for as long as the PD level lags the default rate. Provisions based on these
@@ -334,15 +566,28 @@ model with sector factors would be needed to price that risk.
    model, rather than more diversification by loan count.
 4. **LGD is stable and high**, so there is little to gain from refining it. Effort is better spent
    on the PD level.
+5. **Plan for a mild recession as a realistic case.** It raises lifetime losses by about 60% (to
+   10.3%), and the base 99% VaR covers it. A severe recession (15.3%) exceeds that buffer once LGD
+   and EAD worsen. Buffer and limit-setting should be based on the downturn curve, not the base
+   case alone.
+6. **The safest loans are not a hedge.** Grade 1 losses rise almost four times in a severe
+   recession, and every grade contributes a similar share of the extra loss.
+7. **Interest-rate risk runs through the economy.** Monitoring for this book should track
+   unemployment and credit conditions rather than borrowers' payment burden.
 
-## 8. Model assumptions and limitations
+## 9. Model assumptions and limitations
 
 - *Lifetime horizon:* every figure covers the loans' 36-month life, not one year, so it cannot be
   compared directly with Basel one-year capital or IFRS 9 12-month expected loss.
 - *Gaussian one-factor dependence:* one economy factor, no sector or regional factors, no tail
   dependence beyond what ρ implies, and the same ρ formula for every purpose.
-- *LGD independent of the economy:* in a downturn, recoveries typically fall as defaults rise. This
-  base case has no downturn LGD; Phase 3 stress scenarios add one.
+- *LGD independent of the economy:* in a downturn, recoveries typically fall as defaults rise. The
+  base case has no downturn LGD; the stress scenarios add fixed downturn add-ons to LGD and EAD,
+  anchored on 2007–11 charge-offs rather than estimated.
+- *Scenario severities are assumptions:* they are set by how rare they are, anchored on two small
+  early vintages, not on an estimated link from unemployment or rates to defaults.
+- *Rate shock covers revolving debt only:* the data does not show mortgages or other floating-rate
+  debt, so the payment channel is a lower bound.
 - *Correlation is assumed:* the Basel formula is calibrated for one-year PDs on bank retail books,
   and is applied here at annualised PDs under a constant-hazard assumption.
 - *Loss parameters by grade only:* LGD and EAD vary by rating grade but not by purpose or loan size.

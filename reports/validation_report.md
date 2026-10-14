@@ -458,7 +458,7 @@ One coefficient at a time, ±1 standard error (largest effects):
 | L1 | Reject inference: only loans LendingClub approved are observed | PDs would be too low if applied to all applicants, because declined applicants are riskier than anyone in the data | High | Use the model only on populations that passed similar approval criteria; apply reject inference before any use on new applicants |
 | L2 | Lifetime PD, not 12-month PD | Cannot be used directly for Basel IRB capital or IFRS 9 stage 1 provisions, which need a 12-month PD | Medium | Portfolio risk measures are labelled as lifetime; a 12-month PD would need payment-level data |
 | L3 | No macroeconomic drivers (through-the-cycle) | PDs do not move with the economy; default rates rose from 10.6% (2011) to 14.9% (2015) without the model's inputs explaining the change | High | Recalibrate the intercept on recent vintages; monitor calibration-in-the-large each year; stress PDs through the portfolio engine |
-| L4 | Recalibration lags a drifting default rate | An intercept fitted on 2014 loans closes only about a quarter of the 2015 gap (−2.34 to −1.71 points); 6 of 7 grades still fail | High | Re-fit on the latest mature vintage and confirm on the next; test a time-varying intercept (Phase 3) |
+| L4 | Recalibration lags a drifting default rate | An intercept fitted on 2014 loans closes only about a quarter of the 2015 gap (−2.34 to −1.71 points); 6 of 7 grades still fail | High | Re-fit on the latest mature vintage and confirm on the next; the implied economy factor by vintage (portfolio risk report, section 7.2) is a starting point for a time-varying intercept |
 | L5 | Modest discrimination from application data only | Out-of-time Gini 0.296, below the 0.30 threshold, and weaker still for riskier borrowers (0.20 for FICO below 680); no detailed bureau history is available | Medium | Set cut-offs on observed bad rates; LendingClub's sub-grade (more data) ranks better; a gradient-boosting challenger gains only 0.022 |
 | L6 | Feature availability changed over time | `mort_acc` exists only from 2012 and was excluded; the challenger still uses it | Low | Feature screen drops inputs missing for more than 10% of training loans |
 | L7 | Few independent economic periods, none in a recession | 12 issue months in the out-of-time year, so the PD level is known less precisely than loan counts suggest; vintages with enough loans (2009–2015) imply a default correlation of only 0.004–0.013 | Medium | Report month-block intervals alongside loan-level ones; use the Basel retail correlation rather than the data estimate, with a sensitivity grid |
@@ -491,8 +491,9 @@ Full register with mitigations: [`limitations_register.md`](limitations_register
    as it matures. Repeat every year. The 2014 → 2015 test shows that a recalibration more than a
    year old will understate PDs while default rates are rising.
 2. **Add a time-varying calibration.** Because the drift is not explained by the inputs, test an
-   intercept linked to a macroeconomic or vintage indicator (this feeds the Phase 3 stress
-   scenarios) rather than relying on lagged recalibration alone.
+   intercept linked to a macroeconomic or vintage indicator rather than relying on lagged
+   recalibration alone. The economy factor implied by each vintage (portfolio risk report,
+   section 7.2) is a natural candidate.
 3. **Fix the treatment of missing values.** Any "Missing" bin with fewer than 5% of training
    loans should take the WoE of the riskiest bin, or the application should be referred, so a
    blank field can never lower the PD.

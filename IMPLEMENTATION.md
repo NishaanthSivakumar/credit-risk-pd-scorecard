@@ -18,7 +18,7 @@ calculations live in `src/pdmodel/`, where they are tested and shared with the p
 |---|---|---|---|
 | 1 | Strengthen model validation | Critical | ✅ |
 | 2 | Credit portfolio risk engine | High | ✅ |
-| 3 | Macroeconomic stress testing | High | ⬜ |
+| 3 | Macroeconomic stress testing | High | ✅ |
 | 4 | Credit portfolio optimisation | High | ⬜ |
 | 5 | Model monitoring and governance | Medium | ⬜ |
 | 6 | Engineering and presentation | Medium | ⬜ |
@@ -198,22 +198,37 @@ a convergence check, in `reports/portfolio_risk_report.md`. Notebook: `notebooks
 
 ## Phase 3: Macroeconomic stress testing
 
-**Priority:** High · **Status:** ⬜
+**Priority:** High · **Status:** ✅
 
 | Task | Status | How |
 |---|---|---|
-| Define base, mild recession, severe recession and interest rate shock scenarios | ⬜ | Each scenario is a systematic-factor shock z, plus LGD and correlation changes |
-| Specify the effect on PD | ⬜ | Vasicek conditional PD |
-| Specify the effect on LGD | ⬜ | Downturn LGD add-on, documented assumption |
-| Recalculate expected loss | ⬜ | |
-| Simulate stressed loss distributions | ⬜ | Reuses the Phase 2 engine |
-| Stressed VaR and ES | ⬜ | |
-| Compare with the base case | ⬜ | |
-| Sensitivity to scenario assumptions | ⬜ | |
-| Document limitations | ⬜ | Scenarios are assumptions, not estimated macroeconomic relationships |
+| Define base, mild recession, severe recession and interest rate shock scenarios | ✅ | `STRESS_SCENARIOS` in `config.py`: each sets how rare the economy is (1-in-10, 1-in-50, 1-in-5), plus LGD, EAD, correlation and rate add-ons |
+| Specify the effect on PD | ✅ | Vasicek conditional PD at the scenario's economy factor, in `src/pdmodel/stress.py`; the rate shock also raises debt-to-income through the scorecard |
+| Specify the effect on LGD | ✅ | Downturn add-ons to LGD and EAD, anchored on 2007–11 charge-offs |
+| Recalculate expected loss | ✅ | Per loan and in total, against the base case |
+| Simulate stressed loss distributions | ✅ | Phase 2 engine with each scenario's parameters, same random draws for every scenario |
+| Stressed VaR and ES | ✅ | 95% and 99% VaR, 97.5% and 99% ES per scenario |
+| Compare with the base case | ✅ | Multiple of base expected loss, and each scenario's percentile in the base distribution |
+| Sensitivity to scenario assumptions | ✅ | Tornado chart over severity, PD level, LGD, EAD and correlation; expected loss across economies |
+| Document limitations | ✅ | Scenarios are assumptions, not estimated macroeconomic relationships |
+| Historical anchor (added) | ✅ | Economy factor implied by each vintage's default rate |
+| Reverse stress test (added) | ✅ | How rare an economy must be for losses to reach 8–20% |
 
-Deliverables: `notebooks/08_stress_testing.ipynb`, stress-testing module, scenario comparison report, stressed loss distribution plots,
-portfolio vulnerability analysis. Tests: `tests/test_stress.py`.
+Deliverables: `notebooks/08_stress_testing.ipynb`, `src/pdmodel/stress.py`, section 7 of
+`reports/portfolio_risk_report.md` (scenario comparison, stressed loss distributions, portfolio
+vulnerability). Tests: `tests/test_stress.py`.
+
+### Phase 3 outcome
+
+- The 2007 and 2008 vintages, which ran through the 2008–09 recession, imply 1-in-10.6 and 1-in-6.5
+  economies: the mild scenario matches them, and the severe one goes beyond anything in the data.
+- Lifetime expected loss rises from 6.35% of funded amount to 10.32% in a mild recession and 15.29%
+  in a severe one ($554m against $230m), beyond the base 99% VaR of 13.45%.
+- A 300bp rate rise barely moves borrowers' payments (+0.04 points of expected loss); the rate
+  scenario's impact comes almost entirely from the slower economy.
+- The safest grade's losses rise 3.8 times in a severe recession, against 1.9 times for the riskiest.
+- Severity and the PD level drive the result: removing the calibration gap adds as much loss as
+  moving from a 1-in-50 to a 1-in-100 economy.
 
 ---
 
@@ -281,10 +296,10 @@ Notebook: `notebooks/10_monitoring.ipynb`. Tests: `tests/test_monitoring.py`.
 
 | Task | Status |
 |---|---|
-| Module tests (written during Phases 1–5) | 🔄 Phases 1–2 done |
+| Module tests (written during Phases 1–5) | 🔄 Phases 1–3 done |
 | GitHub Actions workflow running the tests on every push and pull request | ⬜ |
 | Pinned dependencies | ⬜ |
-| Random seeds for every stochastic step | 🔄 Phases 1–2 done |
+| Random seeds for every stochastic step | 🔄 Phases 1–3 done |
 | Reproducibility instructions | ⬜ |
 
 ### 6.2 Dashboard
@@ -304,4 +319,4 @@ Notebook: `notebooks/10_monitoring.ipynb`. Tests: `tests/test_monitoring.py`.
 |---|---|
 | README with the 15 recommended sections | ⬜ |
 | Final model validation report (13 sections) | ⬜ |
-| Portfolio risk report (10 sections), built up from Phase 2 onward | 🔄 Sections 1–6, 9–10 drafted |
+| Portfolio risk report (10 sections), built up from Phase 2 onward | 🔄 Sections 1–7 and implications/limitations drafted |

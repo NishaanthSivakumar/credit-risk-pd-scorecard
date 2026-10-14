@@ -1,0 +1,5 @@
+scenario,economy,z,lgd_add,ead_add,rho_mult,rate_shock
+Base,average,,0.0,0.0,1.0,0.0
+Mild recession,1 in 10,-1.2815515655446004,0.02,0.03,1.0,0.0
+Severe recession,1 in 50,-2.053748910631823,0.04,0.06,1.25,0.0
+Interest rate shock,1 in 5,-0.8416212335729142,0.0,0.0,1.0,0.03

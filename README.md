@@ -15,6 +15,8 @@ the way a bank's credit risk and model validation teams would do it, and extende
   **sensitivity analysis** and a ten-dimension assessment with fixed **decision rules**
 - **Portfolio risk**: LGD and EAD measured from recoveries, expected loss by segment, and a
   **one-factor Gaussian Monte Carlo** engine for lifetime VaR and Expected Shortfall
+- **Stress testing**: recession and interest-rate scenarios through the Vasicek conditional PD,
+  anchored to LendingClub's own recession vintages, with a reverse stress test
 - Auto-generated reports: [`validation_report.md`](reports/validation_report.md),
   [`data_audit.md`](reports/data_audit.md), [`portfolio_risk_report.md`](reports/portfolio_risk_report.md)
   and a [limitations register](reports/limitations_register.md)
@@ -50,6 +52,11 @@ amount, against 7.56% realised; the shortfall is the PD gap, as loss severity he
 99% lifetime VaR is 13.45% and the 99% Expected Shortfall 15.0%, with the Basel retail
 correlation; the correlation assumption moves the 99% VaR from 10% to 21%.
 
+**Stress testing:** a mild recession (1-in-10 economy, about what LendingClub's 2007 loans went
+through) raises lifetime expected loss to 10.3% of funded amount; a severe one (1-in-50, with
+downturn LGD, EAD and correlation) to 15.3%, beyond the base 99% VaR. A 300bp rate rise barely
+reaches these fixed-rate borrowers' payments, so its risk runs through the economy.
+
 ![Default rate by score decile, out-of-time](reports/figures/rank_ordering_oot.png)
 
 ## Project structure
@@ -63,7 +70,8 @@ correlation; the correlation assumption moves the 99% VaR from 10% to 21%.
 │   ├── 04_model_validation.ipynb     discrimination, calibration, stability
 │   ├── 05_recalibration_and_uncertainty.ipynb   recalibration, bootstrap intervals, challenger test
 │   ├── 06_sensitivity_and_decision.ipynb        data audit, sensitivity, validation decision
-│   └── 07_portfolio_risk.ipynb                  LGD/EAD, expected loss, Monte Carlo VaR/ES
+│   ├── 07_portfolio_risk.ipynb                  LGD/EAD, expected loss, Monte Carlo VaR/ES
+│   └── 08_stress_testing.ipynb                  recession and rate scenarios, reverse stress test
 ├── src/pdmodel/
 │   ├── config.py        every setting (dates, thresholds, scaling) in one place
 │   ├── data.py          loading, target definition, feature engineering, splits
@@ -77,6 +85,7 @@ correlation; the correlation assumption moves the 99% VaR from 10% to 21%.
 │   ├── assessment.py    ten validation dimensions and the decision rules
 │   ├── portfolio.py     LGD/EAD measurement, expected loss, concentration
 │   ├── simulation.py    one-factor Gaussian Monte Carlo, VaR/ES, correlation
+│   ├── stress.py        stress scenarios, vulnerability, reverse stress test
 │   ├── plots.py         charts
 │   ├── reports.py       report writers
 │   └── pipeline.py      end-to-end run
@@ -115,7 +124,7 @@ The pipeline writes every table and figure plus the three reports, inserting the
 `reports/commentary.md` and `reports/portfolio_commentary.md`. Random seeds are fixed in
 `config.py`, so a re-run reproduces every number.
 
-The notebooks (01 → 07) run the same steps one at a time and display every result, with the
+The notebooks (01 → 08) run the same steps one at a time and display every result, with the
 findings at the end of each. They call the code in `src/pdmodel/`, so the notebooks, the pipeline
 and the tests all use the same calculations. Run them in order: each saves what the next one needs
 to `data/processed/`.
@@ -144,6 +153,8 @@ without the real data (run the pipeline with
 | LGD and EAD measured on 2007–14 charge-offs | Real recoveries rather than assumptions, without using the 2015 book's own outcomes |
 | Lifetime (36-month) loss measures | Match the lifetime PD; not comparable with one-year capital |
 | Basel retail correlation, not the data estimate | The data only covers 2009–15, a recovery without a recession |
+| Stress scenarios set by how rare the economy is | Nine annual vintages cannot support an estimated unemployment-to-default link; severity is anchored on the 2007–08 vintages instead |
+| Same random draws for every stress scenario | Differences between scenarios are scenario effects, not simulation noise |
 
 ## Limitations
 

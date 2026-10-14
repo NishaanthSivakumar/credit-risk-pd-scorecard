@@ -129,8 +129,9 @@ also uses `mort_acc`, which the scorecard excludes because it was only recorded 
    as it matures. Repeat every year. The 2014 → 2015 test shows that a recalibration more than a
    year old will understate PDs while default rates are rising.
 2. **Add a time-varying calibration.** Because the drift is not explained by the inputs, test an
-   intercept linked to a macroeconomic or vintage indicator (this feeds the Phase 3 stress
-   scenarios) rather than relying on lagged recalibration alone.
+   intercept linked to a macroeconomic or vintage indicator rather than relying on lagged
+   recalibration alone. The economy factor implied by each vintage (portfolio risk report,
+   section 7.2) is a natural candidate.
 3. **Fix the treatment of missing values.** Any "Missing" bin with fewer than 5% of training
    loans should take the WoE of the riskiest bin, or the application should be referred, so a
    blank field can never lower the PD.

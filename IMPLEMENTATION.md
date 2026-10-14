@@ -19,7 +19,7 @@ calculations live in `src/pdmodel/`, where they are tested and shared with the p
 | 1 | Strengthen model validation | Critical | ✅ |
 | 2 | Credit portfolio risk engine | High | ✅ |
 | 3 | Macroeconomic stress testing | High | ✅ |
-| 4 | Credit portfolio optimisation | High | ⬜ |
+| 4 | Credit portfolio optimisation | High | ✅ |
 | 5 | Model monitoring and governance | Medium | ⬜ |
 | 6 | Engineering and presentation | Medium | ⬜ |
 | 7 | Documentation and recruiter presentation | High | ⬜ |
@@ -234,30 +234,44 @@ vulnerability). Tests: `tests/test_stress.py`.
 
 ## Phase 4: Credit portfolio optimisation
 
-**Priority:** High · **Status:** ⬜
+**Priority:** High · **Status:** ✅
 
 ### 4.1 Allocation framework
 
 | Task | Status | How |
 |---|---|---|
-| Measure realised return per loan | ⬜ | From total payments received vs amount funded, over the loan's life |
-| Build inputs from origination-time information only | ⬜ | Model PD, interest rate (as the return input, not a PD predictor), LGD, EAD |
-| Document assumptions | ⬜ | Servicing fee, prepayment, liquidity and transaction costs |
+| Measure realised return per loan | ✅ | Net cash received (borrower payments less the 1% servicing fee, plus recoveries less collection fees) per dollar funded; approximate annual return from the amortisation schedule |
+| Build inputs from origination-time information only | ✅ | Model PD, interest rate (as the return input), measured LGD and EAD, and interest factors measured on 2007–14 loans |
+| Document assumptions | ✅ | Servicing fee, prepayment (in the interest factors), holding to maturity (no liquidity cost), no purchase costs |
 
 ### 4.2 Strategies, compared on 2015 loans
 
 | Task | Status |
 |---|---|
-| Equal-weighted portfolio | ⬜ |
-| Maximum expected net return | ⬜ |
-| Minimum expected loss | ⬜ |
-| Minimum portfolio CVaR | ⬜ |
-| Maximum expected return subject to a CVaR limit | ⬜ |
-| Constraints: weights sum to 100%, segment limits, minimum/maximum allocations, concentration limits, optional EL limit | ⬜ |
-| Compare each strategy's expected and realised outcomes | ⬜ |
+| Equal-weighted portfolio | ✅ |
+| Maximum expected net return | ✅ |
+| Minimum expected loss | ✅ |
+| Minimum portfolio CVaR | ✅ |
+| Maximum expected return subject to a CVaR limit | ✅ |
+| Constraints: weights sum to 100%, segment limits, minimum/maximum allocations, concentration limits, optional EL limit | ✅ |
+| Compare each strategy's expected and realised outcomes | ✅ |
+| Whole-book benchmark and hindsight optimum (added) | ✅ |
+| Sensitivity to the return inputs: price-informed PD and segment history (added) | ✅ |
 
-Deliverables: `notebooks/09_portfolio_optimisation.ipynb`, optimisation module, strategy comparison, risk-return charts, allocation section of
-the portfolio risk report. Tests: `tests/test_optimisation.py`.
+Deliverables: `notebooks/09_portfolio_optimisation.ipynb`, `src/pdmodel/optimisation.py`, section 8 of
+`reports/portfolio_risk_report.md` (strategy comparison, risk-return charts). Tests: `tests/test_optimisation.py`.
+
+### Phase 4 outcome
+
+- Segments: our rating grade × LendingClub grade (32 segments, 99.6% of the 2015 book).
+- Minimising expected loss returned 6.31% over the loans' life, a point above the whole book (5.30%)
+  and within 0.03 points of the hindsight optimum (6.34%).
+- Maximising expected return forecast 14.91% and earned 3.74%. Under the scorecard model the
+  CVaR-minimising and risk-limited strategies chose the same portfolio, because the model saw no
+  trade-off between return and tail risk.
+- The cause is concentrated input error in high-rate loans: a PD too flat across LendingClub's grades
+  (34% defaulted in E–G against 21% predicted), more prepayment, and earlier defaults.
+- Neither a price-informed PD nor segment history rescues return seeking (best 4.80% and 5.08%).
 
 ---
 
@@ -296,10 +310,10 @@ Notebook: `notebooks/10_monitoring.ipynb`. Tests: `tests/test_monitoring.py`.
 
 | Task | Status |
 |---|---|
-| Module tests (written during Phases 1–5) | 🔄 Phases 1–3 done |
+| Module tests (written during Phases 1–5) | 🔄 Phases 1–4 done |
 | GitHub Actions workflow running the tests on every push and pull request | ⬜ |
 | Pinned dependencies | ⬜ |
-| Random seeds for every stochastic step | 🔄 Phases 1–3 done |
+| Random seeds for every stochastic step | 🔄 Phases 1–4 done |
 | Reproducibility instructions | ⬜ |
 
 ### 6.2 Dashboard
@@ -319,4 +333,4 @@ Notebook: `notebooks/10_monitoring.ipynb`. Tests: `tests/test_monitoring.py`.
 |---|---|
 | README with the 15 recommended sections | ⬜ |
 | Final model validation report (13 sections) | ⬜ |
-| Portfolio risk report (10 sections), built up from Phase 2 onward | 🔄 Sections 1–7 and implications/limitations drafted |
+| Portfolio risk report (10 sections), built up from Phase 2 onward | 🔄 All 10 sections drafted; final review in Phase 7 |

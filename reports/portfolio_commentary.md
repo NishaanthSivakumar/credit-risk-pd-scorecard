@@ -188,6 +188,65 @@ with downturn assumptions. 20% needs a 1-in-11,606 or 1-in-497 economy. The down
 shorten these return periods by a factor of 2 to 23, so they matter as much as the severity of the
 economy itself.
 
+## optimisation inputs
+
+Repaid loans earned 1.33–1.34 times their interest rate per dollar over their life, in every band:
+less than the 1.6 or so a 36-month loan pays if it runs to term, because many borrowers repaid early.
+Defaulted loans earned 0.95–1.10 times their rate before they stopped paying, and less in the riskier
+bands, where loans default sooner. Both factors come from 2007–14 loans.
+
+The backtest is out of sample by vintage, not a real-time simulation: parameters come from loans issued
+up to 2014, but an investor in 2015 could not yet have seen how 2013–14 loans turned out. The same
+convention runs through the validation (the recalibration is fitted on 2014 outcomes).
+
+## optimisation results
+
+**Every strategy that reached for expected return did worse than buying the whole book; the one that
+minimised expected loss did best.**
+
+- *Whole book:* 5.30% lifetime net return (about 4.0% a year), against 6.86% expected.
+- *Min expected loss:* 6.31%, a point above the book and within 0.03 points of the best result
+  possible with hindsight under the same limits (6.34%). It holds our three best grades, almost all in
+  LendingClub's A–C bands.
+- *Max expected return:* 3.74%, against 14.91% expected: 1.6 points below the book and 11 points
+  below its own forecast. It put all its money in LendingClub's C, D and E–G bands (the 35% limit in
+  each of D and E–G), and 14.1% of its money was lost to defaults, against 7.5% for the whole book.
+- *Min CVaR, and max return with a CVaR or expected-loss limit:* the same portfolio as max return.
+  Under the scorecard model, the high-rate segments have the highest expected return *and* the lowest
+  tail risk, because their rates appear to cushion losses even in bad economies. The model sees no
+  trade-off between risk and return (section 8.1 chart), so the risk limits never bind.
+- *Equal weight:* 4.45%, because it gives small, risky segments the same weight as large, safe ones.
+
+## why return chasing failed
+
+Three things went wrong in the riskier bands, and all three get worse as the rate rises:
+
+1. **The PD is too flat across LendingClub's grades.** For E–G loans the scorecard predicts 20.8% and
+   34.3% defaulted; for A loans it predicts 8.1% and 5.4% defaulted. LendingClub's grade contains risk
+   information the scorecard leaves out, and the default-rate drift found in the validation was
+   concentrated in the riskiest bands (E–G defaults rose from 24% on 2007–13 loans to 34% on 2015 loans).
+2. **High-rate borrowers repaid early more often,** earning 1.27 times their rate instead of the
+   assumed 1.34.
+3. **High-rate loans defaulted earlier,** so less principal had been repaid: 0.57 of each dollar came
+   back from E–G defaults, against 0.65 assumed.
+
+For E–G loans, the expected 13.1% falls to 4.6% with the actual default rate, and to 0.1% once
+prepayment and recoveries are as realised. An optimiser maximises exactly where its inputs are most
+wrong, so these errors end up concentrated in its portfolio.
+
+## input sensitivity
+
+Neither alternative input rescues the return-seeking strategies. With the **price-informed model**, the
+expected-loss limit now binds and lifts the result from 3.74% to 4.80%, the best of the return seekers,
+but still half a point below the whole book. With **segment history**, minimising CVaR returns 5.08%,
+also below the book. History is no guide here: the D and E–G segments returned 6–14% on 2007–14 loans
+and between −3% and 6% on 2015 loans, so history's expected returns are uncorrelated with what happened
+(−0.01 across segments), and both model-based inputs are negatively correlated (−0.35 and −0.26).
+
+Minimising expected loss returns 6.31% under both PD inputs (the history input reuses the scorecard's
+expected loss), because the lowest-loss segments, our best grades in LendingClub's A and B bands, are
+much the same either way.
+
 ## implications
 
 1. **Expected loss is understated by about 16%** (it would have needed to be 19% higher to match
@@ -209,6 +268,13 @@ economy itself.
    recession, and every grade contributes a similar share of the extra loss.
 7. **Interest-rate risk runs through the economy.** Monitoring for this book should track
    unemployment and credit conditions rather than borrowers' payment burden.
+8. **Select on low expected loss, not high expected return.** In the 2015 backtest, minimising expected
+   loss beat the whole book by a point and matched the hindsight optimum; every return-seeking strategy
+   lost to the book.
+9. **Treat optimiser output as a stress test of the inputs.** When an optimiser concentrates in the
+   highest-rate loans and reports no trade-off between return and tail risk, that is a sign of input
+   error. Risk limits measured with the same inputs do not protect against it; limits measured
+   independently (here, a price-informed PD) help a little.
 
 ## limitations
 
@@ -229,3 +295,11 @@ economy itself.
 - *Recoveries may be incomplete:* 25% of 2014 charge-offs show no recovery, so recent LGDs may be
   slightly overstated.
 - *PD inherited from the scorecard:* the expected loss carries the scorecard's calibration gap.
+- *Optimisation is a one-vintage backtest:* one year of loans in one economic environment, with
+  parameters that an investor in 2015 could not yet have fully seen. It shows how the strategies
+  behaved in 2015, not how they would behave in general.
+- *Returns are lifetime per dollar,* not time-weighted; annual figures are approximate. Strategies
+  hold different mixes of loans that run for different lengths of time, and reinvestment is ignored.
+- *Segments are bought pro rata:* every loan in a chosen segment, at the same weight, held to maturity.
+  No secondary-market trading, purchase limits or taxes.
+

@@ -553,7 +553,191 @@ with downturn assumptions. 20% needs a 1-in-11,606 or 1-in-497 economy. The down
 shorten these return periods by a factor of 2 to 23, so they matter as much as the severity of the
 economy itself.
 
-## 8. Risk management implications
+## 8. Portfolio optimisation
+
+An investor who buys LendingClub notes at par and holds them to the end chooses how to spread money
+across **segments: our rating grade × LendingClub grade** (E, F and G merged; segments with fewer than
+500 loans left out, which leaves 99.6% of the 2015 book). Everything used to
+choose is known when the loans are issued; each choice is then scored on what the 2015 loans actually
+returned. Returns are **lifetime net returns per dollar**, after a 1% servicing fee
+and collection fees.
+
+### 8.1 Inputs and assumptions
+
+Expected return per loan = (1 − PD) × cash if repaid + PD × cash if defaulted − 1, where interest earned
+is the rate times a factor measured on 2007–2014 loans (it captures prepayment
+and time to default), and the cash from a default comes from the measured EAD and LGD:
+
+| lc_band | loans | k_good | k_bad |
+|---|---|---|---|
+| A | 72,888 | 1.331 | 1.101 |
+| B | 120,242 | 1.341 | 1.087 |
+| C | 84,979 | 1.330 | 1.052 |
+| D | 43,952 | 1.336 | 1.009 |
+| E–G | 15,935 | 1.338 | 0.954 |
+
+| Assumption | Value |
+|---|---|
+| Purchase price | Par, no purchase fee |
+| Servicing fee | 1% of every borrower payment; recoveries net of the recorded collection fee |
+| Holding | To maturity: no secondary-market sales, so no liquidity cost or price risk |
+| Prepayment | In the interest factors above, measured on earlier loans |
+| Limits | At most 10% per segment and 35% per LendingClub band; no short positions |
+| Tail risk | 99% CVaR of lifetime return over 10,000 economies from the one-factor model |
+| Annualised return | Approximate: gain ÷ principal outstanding over time, following each loan's schedule to its last payment (+5 months for defaults) |
+
+Repaid loans earned 1.33–1.34 times their interest rate per dollar over their life, in every band:
+less than the 1.6 or so a 36-month loan pays if it runs to term, because many borrowers repaid early.
+Defaulted loans earned 0.95–1.10 times their rate before they stopped paying, and less in the riskier
+bands, where loans default sooner. Both factors come from 2007–14 loans.
+
+The backtest is out of sample by vintage, not a real-time simulation: parameters come from loans issued
+up to 2014, but an investor in 2015 could not yet have seen how 2013–14 loans turned out. The same
+convention runs through the validation (the recalibration is fitted on 2014 outcomes).
+
+### 8.2 Strategies and results
+
+| strategy | what it does |
+|---|---|
+| Whole book | every loan, in proportion to its size (benchmark) |
+| Equal weight | the same amount in every segment |
+| Max expected return | highest expected return within the limits |
+| Min expected loss | lowest expected loss within the limits |
+| Min CVaR | lowest 99% CVaR within the limits |
+| Max return, CVaR ≤ book | highest expected return with 99% CVaR no worse than the whole book's |
+| Max return, EL ≤ book | highest expected return with expected loss no higher than the whole book's |
+
+| strategy | expected_return | el_rate | cvar_0.99 | realised_return | realised_annualised | realised_loss_rate | segments_held | largest_weight |
+|---|---|---|---|---|---|---|---|---|
+| Whole book | 6.86% | 6.37% | 2.24% | 5.30% | 4.03% | 7.54% | 32 | 12.0% |
+| Equal weight | 8.29% | 7.19% | 1.20% | 4.45% | 3.43% | 10.12% | 32 | 3.1% |
+| Max expected return | 14.91% | 5.35% | -5.46% | 3.74% | 3.07% | 14.08% | 11 | 10.0% |
+| Min expected loss | 9.10% | 3.71% | -0.67% | 6.31% | 4.89% | 5.74% | 10 | 10.0% |
+| Min CVaR | 14.91% | 5.35% | -5.46% | 3.74% | 3.07% | 14.08% | 11 | 10.0% |
+| Max return, CVaR ≤ book | 14.91% | 5.35% | -5.46% | 3.74% | 3.07% | 14.08% | 11 | 10.0% |
+| Max return, EL ≤ book | 14.91% | 5.35% | -5.46% | 3.74% | 3.07% | 14.08% | 11 | 10.0% |
+
+With hindsight, the best portfolio allowed by the same limits would have returned
+**6.34%**.
+
+![Expected vs realised](figures/optimisation_expected_vs_realised.png)
+![Allocation](figures/optimisation_allocation.png)
+![Frontier](figures/optimisation_frontier.png)
+
+**Every strategy that reached for expected return did worse than buying the whole book; the one that
+minimised expected loss did best.**
+
+- *Whole book:* 5.30% lifetime net return (about 4.0% a year), against 6.86% expected.
+- *Min expected loss:* 6.31%, a point above the book and within 0.03 points of the best result
+  possible with hindsight under the same limits (6.34%). It holds our three best grades, almost all in
+  LendingClub's A–C bands.
+- *Max expected return:* 3.74%, against 14.91% expected: 1.6 points below the book and 11 points
+  below its own forecast. It put all its money in LendingClub's C, D and E–G bands (the 35% limit in
+  each of D and E–G), and 14.1% of its money was lost to defaults, against 7.5% for the whole book.
+- *Min CVaR, and max return with a CVaR or expected-loss limit:* the same portfolio as max return.
+  Under the scorecard model, the high-rate segments have the highest expected return *and* the lowest
+  tail risk, because their rates appear to cushion losses even in bad economies. The model sees no
+  trade-off between risk and return (section 8.1 chart), so the risk limits never bind.
+- *Equal weight:* 4.45%, because it gives small, risky segments the same weight as large, safe ones.
+
+### 8.3 Why reaching for return failed
+
+Expected and realised return by LendingClub grade band, 2015 loans:
+
+| lc_band | loans | mean_rate | mean_pd | observed_dr | k_good_assumed | k_good_realised | default_cash_assumed | default_cash_realised | expected_return | expected_return_at_actual_dr | realised_return |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | 70,118 | 6.9% | 8.1% | 5.4% | 1.331 | 1.331 | 0.584 | 0.624 | 4.18% | 5.41% | 5.76% |
+| B | 91,725 | 10.0% | 12.4% | 11.9% | 1.341 | 1.317 | 0.602 | 0.623 | 6.01% | 6.08% | 6.22% |
+| C | 77,423 | 13.2% | 15.6% | 19.4% | 1.330 | 1.295 | 0.620 | 0.608 | 8.25% | 5.91% | 5.22% |
+| D | 32,711 | 16.6% | 18.1% | 26.2% | 1.336 | 1.274 | 0.641 | 0.588 | 11.12% | 6.15% | 3.47% |
+| E–G | 11,049 | 19.8% | 20.8% | 34.3% | 1.338 | 1.266 | 0.654 | 0.571 | 13.07% | 4.57% | 0.08% |
+
+![Segments](figures/optimisation_segments.png)
+
+Three things went wrong in the riskier bands, and all three get worse as the rate rises:
+
+1. **The PD is too flat across LendingClub's grades.** For E–G loans the scorecard predicts 20.8% and
+   34.3% defaulted; for A loans it predicts 8.1% and 5.4% defaulted. LendingClub's grade contains risk
+   information the scorecard leaves out, and the default-rate drift found in the validation was
+   concentrated in the riskiest bands (E–G defaults rose from 24% on 2007–13 loans to 34% on 2015 loans).
+2. **High-rate borrowers repaid early more often,** earning 1.27 times their rate instead of the
+   assumed 1.34.
+3. **High-rate loans defaulted earlier,** so less principal had been repaid: 0.57 of each dollar came
+   back from E–G defaults, against 0.65 assumed.
+
+For E–G loans, the expected 13.1% falls to 4.6% with the actual default rate, and to 0.1% once
+prepayment and recoveries are as realised. An optimiser maximises exactly where its inputs are most
+wrong, so these errors end up concentrated in its portfolio.
+
+### 8.4 Sensitivity to the return inputs
+
+The same strategies with two other sources of expected return: the **price-informed model** scales each
+segment's PD by its actual-to-predicted default ratio on 2007–2014 loans, which
+brings in LendingClub's grade; **segment history** uses each segment's realised return on those loans.
+
+| strategy | Scorecard model: expected | Scorecard model: realised | Price-informed model: expected | Price-informed model: realised | Segment history: expected | Segment history: realised |
+|---|---|---|---|---|---|---|
+| Whole book | 6.86% | 5.30% | 7.02% | 5.30% | 8.45% | 5.30% |
+| Equal weight | 8.29% | 4.45% | 7.86% | 4.45% | 8.83% | 4.45% |
+| Max expected return | 14.91% | 3.74% | 11.94% | 3.74% | 11.74% | 4.48% |
+| Min expected loss | 9.10% | 6.31% | 7.80% | 6.31% | 9.86% | 6.31% |
+| Min CVaR | 14.91% | 3.74% | 11.85% | 4.06% | 11.68% | 5.08% |
+| Max return, CVaR ≤ book | 14.91% | 3.74% | 11.94% | 3.74% | 11.74% | 4.48% |
+| Max return, EL ≤ book | 14.91% | 3.74% | 11.14% | 4.80% | 11.74% | 4.48% |
+
+Correlation between each input's expected returns and the realised 2015 returns, across segments:
+scorecard model -0.35, price-informed -0.26,
+segment history -0.01.
+
+Neither alternative input rescues the return-seeking strategies. With the **price-informed model**, the
+expected-loss limit now binds and lifts the result from 3.74% to 4.80%, the best of the return seekers,
+but still half a point below the whole book. With **segment history**, minimising CVaR returns 5.08%,
+also below the book. History is no guide here: the D and E–G segments returned 6–14% on 2007–14 loans
+and between −3% and 6% on 2015 loans, so history's expected returns are uncorrelated with what happened
+(−0.01 across segments), and both model-based inputs are negatively correlated (−0.35 and −0.26).
+
+Minimising expected loss returns 6.31% under both PD inputs (the history input reuses the scorecard's
+expected loss), because the lowest-loss segments, our best grades in LendingClub's A and B bands, are
+much the same either way.
+
+Per-segment inputs and outcomes:
+
+| seg | loans | exposure | mean_pd | mean_rate | expected_return | el_rate | observed_dr | realised_return | realised_annualised |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 / A | 28,038 | $434.0m | 4.7% | 6.5% | 5.39% | 2.22% | 3.5% | 5.95% | 4.50% |
+| 1 / B | 7,948 | $124.1m | 5.3% | 9.6% | 9.13% | 2.51% | 7.6% | 6.96% | 5.53% |
+| 1 / C | 2,199 | $35.9m | 5.4% | 13.0% | 13.52% | 2.55% | 13.1% | 6.28% | 5.25% |
+| 2 / A | 17,682 | $257.9m | 7.7% | 7.0% | 4.45% | 3.70% | 5.7% | 5.91% | 4.35% |
+| 2 / B | 15,773 | $223.6m | 7.8% | 9.8% | 8.03% | 3.77% | 9.6% | 6.79% | 5.19% |
+| 2 / C | 6,176 | $90.9m | 7.9% | 13.1% | 12.22% | 3.80% | 15.3% | 6.67% | 5.29% |
+| 2 / D | 1,359 | $22.6m | 8.0% | 16.5% | 16.68% | 3.82% | 19.9% | 5.70% | 4.68% |
+| 3 / A | 11,047 | $152.4m | 9.9% | 7.2% | 3.46% | 4.89% | 6.4% | 5.55% | 4.05% |
+| 3 / B | 17,863 | $228.3m | 10.0% | 9.9% | 7.02% | 4.93% | 11.1% | 6.55% | 4.93% |
+| 3 / C | 9,937 | $134.5m | 10.1% | 13.1% | 11.09% | 4.95% | 15.7% | 6.73% | 5.28% |
+| 3 / D | 2,663 | $40.1m | 10.1% | 16.6% | 15.52% | 4.97% | 22.6% | 4.00% | 3.29% |
+| 3 / E–G | 524 | $7.9m | 10.1% | 19.3% | 18.71% | 4.99% | 29.2% | 1.91% | 1.64% |
+| 4 / A | 6,921 | $90.5m | 12.2% | 7.3% | 2.39% | 6.08% | 7.6% | 5.39% | 3.91% |
+| 4 / B | 16,900 | $202.9m | 12.2% | 10.1% | 6.00% | 6.11% | 12.4% | 6.06% | 4.52% |
+| 4 / C | 12,576 | $155.8m | 12.3% | 13.2% | 9.88% | 6.13% | 18.0% | 5.62% | 4.37% |
+| 4 / D | 3,836 | $52.4m | 12.3% | 16.6% | 14.24% | 6.15% | 23.2% | 4.31% | 3.54% |
+| 4 / E–G | 873 | $12.6m | 12.3% | 19.4% | 17.63% | 6.16% | 31.3% | -2.69% | -2.32% |
+| 5 / A | 3,953 | $50.2m | 14.6% | 7.4% | 1.15% | 7.40% | 8.3% | 5.18% | 3.71% |
+| 5 / B | 15,129 | $172.8m | 14.7% | 10.1% | 4.71% | 7.46% | 13.1% | 5.73% | 4.25% |
+| 5 / C | 14,750 | $170.5m | 14.8% | 13.2% | 8.49% | 7.49% | 18.9% | 5.47% | 4.19% |
+| 5 / D | 5,639 | $72.5m | 14.9% | 16.6% | 12.77% | 7.52% | 24.8% | 4.22% | 3.34% |
+| 5 / E–G | 1,516 | $21.1m | 14.9% | 19.5% | 16.09% | 7.53% | 32.3% | 2.13% | 1.75% |
+| 6 / A | 1,919 | $23.5m | 17.8% | 7.5% | -0.78% | 9.41% | 9.9% | 5.11% | 3.62% |
+| 6 / B | 11,790 | $130.6m | 18.0% | 10.3% | 2.82% | 9.49% | 14.4% | 5.49% | 4.02% |
+| 6 / C | 16,310 | $177.0m | 18.1% | 13.3% | 6.42% | 9.56% | 21.3% | 4.57% | 3.46% |
+| 6 / D | 7,699 | $90.3m | 18.2% | 16.6% | 10.57% | 9.60% | 27.1% | 2.71% | 2.13% |
+| 6 / E–G | 2,432 | $31.2m | 18.3% | 19.7% | 14.03% | 9.66% | 33.6% | 0.41% | 0.33% |
+| 7 / A | 558 | $6.3m | 22.6% | 7.6% | -3.71% | 12.43% | 13.1% | 4.22% | 2.94% |
+| 7 / B | 6,322 | $66.0m | 23.4% | 10.5% | -0.43% | 12.85% | 16.7% | 4.94% | 3.58% |
+| 7 / C | 15,475 | $156.2m | 24.5% | 13.4% | 2.50% | 13.42% | 24.1% | 2.91% | 2.17% |
+| 7 / D | 11,067 | $116.6m | 25.4% | 16.7% | 6.07% | 13.87% | 29.4% | 2.45% | 1.87% |
+| 7 / E–G | 5,362 | $59.5m | 26.8% | 20.1% | 9.08% | 14.55% | 36.9% | -0.69% | -0.54% |
+
+## 9. Risk management implications
 
 1. **Expected loss is understated by about 16%** (it would have needed to be 19% higher to match
    the realised loss) for as long as the PD level lags the default rate. Provisions based on these
@@ -574,8 +758,15 @@ economy itself.
    recession, and every grade contributes a similar share of the extra loss.
 7. **Interest-rate risk runs through the economy.** Monitoring for this book should track
    unemployment and credit conditions rather than borrowers' payment burden.
+8. **Select on low expected loss, not high expected return.** In the 2015 backtest, minimising expected
+   loss beat the whole book by a point and matched the hindsight optimum; every return-seeking strategy
+   lost to the book.
+9. **Treat optimiser output as a stress test of the inputs.** When an optimiser concentrates in the
+   highest-rate loans and reports no trade-off between return and tail risk, that is a sign of input
+   error. Risk limits measured with the same inputs do not protect against it; limits measured
+   independently (here, a price-informed PD) help a little.
 
-## 9. Model assumptions and limitations
+## 10. Model assumptions and limitations
 
 - *Lifetime horizon:* every figure covers the loans' 36-month life, not one year, so it cannot be
   compared directly with Basel one-year capital or IFRS 9 12-month expected loss.
@@ -594,3 +785,10 @@ economy itself.
 - *Recoveries may be incomplete:* 25% of 2014 charge-offs show no recovery, so recent LGDs may be
   slightly overstated.
 - *PD inherited from the scorecard:* the expected loss carries the scorecard's calibration gap.
+- *Optimisation is a one-vintage backtest:* one year of loans in one economic environment, with
+  parameters that an investor in 2015 could not yet have fully seen. It shows how the strategies
+  behaved in 2015, not how they would behave in general.
+- *Returns are lifetime per dollar,* not time-weighted; annual figures are approximate. Strategies
+  hold different mixes of loans that run for different lengths of time, and reinvestment is ignored.
+- *Segments are bought pro rata:* every loan in a chosen segment, at the same weight, held to maturity.
+  No secondary-market trading, purchase limits or taxes.

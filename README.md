@@ -17,6 +17,8 @@ the way a bank's credit risk and model validation teams would do it, and extende
   **one-factor Gaussian Monte Carlo** engine for lifetime VaR and Expected Shortfall
 - **Stress testing**: recession and interest-rate scenarios through the Vasicek conditional PD,
   anchored to LendingClub's own recession vintages, with a reverse stress test
+- **Portfolio optimisation**: allocation across loan segments (expected return, expected loss and
+  CVaR objectives, solved as linear programmes), backtested on what the loans actually returned
 - Auto-generated reports: [`validation_report.md`](reports/validation_report.md),
   [`data_audit.md`](reports/data_audit.md), [`portfolio_risk_report.md`](reports/portfolio_risk_report.md)
   and a [limitations register](reports/limitations_register.md)
@@ -57,6 +59,12 @@ through) raises lifetime expected loss to 10.3% of funded amount; a severe one (
 downturn LGD, EAD and correlation) to 15.3%, beyond the base 99% VaR. A 300bp rate rise barely
 reaches these fixed-rate borrowers' payments, so its risk runs through the economy.
 
+**Portfolio optimisation:** on 2015 loans, the portfolio that minimised expected loss returned 6.31%
+over the loans' life, a point above buying the whole book (5.30%) and close to the hindsight optimum
+(6.34%). Every strategy that maximised expected return did worse than the book: the optimiser
+concentrated money in high-rate loans, where the PD, prepayment and recovery inputs were all most
+wrong. It forecast 14.9% and earned 3.7%.
+
 ![Default rate by score decile, out-of-time](reports/figures/rank_ordering_oot.png)
 
 ## Project structure
@@ -71,7 +79,8 @@ reaches these fixed-rate borrowers' payments, so its risk runs through the econo
 │   ├── 05_recalibration_and_uncertainty.ipynb   recalibration, bootstrap intervals, challenger test
 │   ├── 06_sensitivity_and_decision.ipynb        data audit, sensitivity, validation decision
 │   ├── 07_portfolio_risk.ipynb                  LGD/EAD, expected loss, Monte Carlo VaR/ES
-│   └── 08_stress_testing.ipynb                  recession and rate scenarios, reverse stress test
+│   ├── 08_stress_testing.ipynb                  recession and rate scenarios, reverse stress test
+│   └── 09_portfolio_optimisation.ipynb          allocation strategies, backtest on realised returns
 ├── src/pdmodel/
 │   ├── config.py        every setting (dates, thresholds, scaling) in one place
 │   ├── data.py          loading, target definition, feature engineering, splits
@@ -86,6 +95,7 @@ reaches these fixed-rate borrowers' payments, so its risk runs through the econo
 │   ├── portfolio.py     LGD/EAD measurement, expected loss, concentration
 │   ├── simulation.py    one-factor Gaussian Monte Carlo, VaR/ES, correlation
 │   ├── stress.py        stress scenarios, vulnerability, reverse stress test
+│   ├── optimisation.py  returns per dollar, CVaR linear programmes, strategy backtest
 │   ├── plots.py         charts
 │   ├── reports.py       report writers
 │   └── pipeline.py      end-to-end run
@@ -124,7 +134,7 @@ The pipeline writes every table and figure plus the three reports, inserting the
 `reports/commentary.md` and `reports/portfolio_commentary.md`. Random seeds are fixed in
 `config.py`, so a re-run reproduces every number.
 
-The notebooks (01 → 08) run the same steps one at a time and display every result, with the
+The notebooks (01 → 09) run the same steps one at a time and display every result, with the
 findings at the end of each. They call the code in `src/pdmodel/`, so the notebooks, the pipeline
 and the tests all use the same calculations. Run them in order: each saves what the next one needs
 to `data/processed/`.
@@ -155,6 +165,8 @@ without the real data (run the pipeline with
 | Basel retail correlation, not the data estimate | The data only covers 2009–15, a recovery without a recession |
 | Stress scenarios set by how rare the economy is | Nine annual vintages cannot support an estimated unemployment-to-default link; severity is anchored on the 2007–08 vintages instead |
 | Same random draws for every stress scenario | Differences between scenarios are scenario effects, not simulation noise |
+| Optimise over segments (our grade × LendingClub grade) | An investor sees both at origination; segment returns are stable enough to estimate, single loans are not |
+| Backtest on realised returns | An optimiser's forecast is only as good as its inputs; the 2015 outcomes show where they were wrong |
 
 ## Limitations
 

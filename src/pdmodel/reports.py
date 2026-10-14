@@ -556,13 +556,105 @@ Random sub-portfolios of the 2015 book, same ρ (share of funded amount, %):
 {_note(notes, "concentration")}
 
 {_stress_section(P["stress"], notes) if "stress" in P else ""}
-## 8. Risk management implications
+{_optimisation_section(P["optimisation"], notes) if "optimisation" in P else ""}
+## 9. Risk management implications
 
 {_note(notes, "implications")}
 
-## 9. Model assumptions and limitations
+## 10. Model assumptions and limitations
 
 {_note(notes, "limitations")}
+"""
+
+
+def _optimisation_section(T: dict, notes: dict) -> str:
+    from .optimisation import STRATEGIES
+    a = C.OPT_ALPHA
+    st = T["strategies"][["expected_return", "el_rate", f"cvar_{a:g}", "realised_return", "realised_annualised",
+                          "realised_loss_rate", "segments_held", "largest_weight"]]
+    seg = T["segments"][["loans", "exposure", "mean_pd", "mean_rate", "expected_return", "el_rate", "observed_dr",
+                         "realised_return", "realised_annualised"]].copy()
+    seg["mean_rate"] = seg["mean_rate"] / 100
+    sens = T["input_sensitivity"].copy()
+    sens.columns = [f"{x}: {y.replace('_return', '')}" for x, y in sens.columns]
+    gap = T["gap"]
+    corr = T["input_correlation"]
+    desc = pd.DataFrame({"strategy": list(STRATEGIES), "what it does": list(STRATEGIES.values())}).set_index("strategy")
+    return f"""## 8. Portfolio optimisation
+
+An investor who buys LendingClub notes at par and holds them to the end chooses how to spread money
+across **segments: our rating grade × LendingClub grade** (E, F and G merged; segments with fewer than
+{C.OPT_MIN_LOANS} loans left out, which leaves {T["coverage"]:.1%} of the 2015 book). Everything used to
+choose is known when the loans are issued; each choice is then scored on what the 2015 loans actually
+returned. Returns are **lifetime net returns per dollar**, after a {C.SERVICING_FEE:.0%} servicing fee
+and collection fees.
+
+### 8.1 Inputs and assumptions
+
+Expected return per loan = (1 − PD) × cash if repaid + PD × cash if defaulted − 1, where interest earned
+is the rate times a factor measured on {C.FIRST_ISSUE_YEAR}–{C.CALIB_YEAR} loans (it captures prepayment
+and time to default), and the cash from a default comes from the measured EAD and LGD:
+
+{md(T["carry"], {"loans": INT, "k_good": F3, "k_bad": F3})}
+
+| Assumption | Value |
+|---|---|
+| Purchase price | Par, no purchase fee |
+| Servicing fee | {C.SERVICING_FEE:.0%} of every borrower payment; recoveries net of the recorded collection fee |
+| Holding | To maturity: no secondary-market sales, so no liquidity cost or price risk |
+| Prepayment | In the interest factors above, measured on earlier loans |
+| Limits | At most {C.OPT_MAX_WEIGHT:.0%} per segment and {C.OPT_BAND_CAP:.0%} per LendingClub band; no short positions |
+| Tail risk | {a:.0%} CVaR of lifetime return over {C.OPT_SCENARIOS:,} economies from the one-factor model |
+| Annualised return | Approximate: gain ÷ principal outstanding over time, following each loan's schedule to its last payment (+{C.CHARGEOFF_LAG_MONTHS} months for defaults) |
+
+{_note(notes, "optimisation inputs")}
+
+### 8.2 Strategies and results
+
+{md(desc)}
+
+{md(st, {"expected_return": PCT, "el_rate": PCT, f"cvar_{a:g}": PCT, "realised_return": PCT,
+         "realised_annualised": PCT, "realised_loss_rate": PCT, "segments_held": INT, "largest_weight": PCT1})}
+
+With hindsight, the best portfolio allowed by the same limits would have returned
+**{T["hindsight_return"]:.2%}**.
+
+![Expected vs realised](figures/optimisation_expected_vs_realised.png)
+![Allocation](figures/optimisation_allocation.png)
+![Frontier](figures/optimisation_frontier.png)
+
+{_note(notes, "optimisation results")}
+
+### 8.3 Why reaching for return failed
+
+Expected and realised return by LendingClub grade band, 2015 loans:
+
+{md(gap, {"loans": INT, "mean_rate": PCT1, "mean_pd": PCT1, "observed_dr": PCT1, "k_good_assumed": F3,
+          "k_good_realised": F3, "default_cash_assumed": F3, "default_cash_realised": F3,
+          "expected_return": PCT, "expected_return_at_actual_dr": PCT, "realised_return": PCT})}
+
+![Segments](figures/optimisation_segments.png)
+
+{_note(notes, "why return chasing failed")}
+
+### 8.4 Sensitivity to the return inputs
+
+The same strategies with two other sources of expected return: the **price-informed model** scales each
+segment's PD by its actual-to-predicted default ratio on {C.FIRST_ISSUE_YEAR}–{C.CALIB_YEAR} loans, which
+brings in LendingClub's grade; **segment history** uses each segment's realised return on those loans.
+
+{md(sens, {c: PCT for c in sens.columns})}
+
+Correlation between each input's expected returns and the realised 2015 returns, across segments:
+scorecard model {corr["scorecard_model"]:+.2f}, price-informed {corr["price_informed"]:+.2f},
+segment history {corr["segment_history"]:+.2f}.
+
+{_note(notes, "input sensitivity")}
+
+Per-segment inputs and outcomes:
+
+{md(seg, {"loans": INT, "exposure": USD, "mean_pd": PCT1, "mean_rate": PCT1, "expected_return": PCT,
+          "el_rate": PCT, "observed_dr": PCT1, "realised_return": PCT, "realised_annualised": PCT})}
 """
 
 

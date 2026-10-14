@@ -282,3 +282,74 @@ def vulnerability_plot(table, label="Severe recession", ax=None,
     ax.grid(axis="x", visible=False)
     ax.legend()
     return ax
+
+
+STRATEGY_COLORS = {"Whole book": INK, "Equal weight": MUTED, "Max expected return": ORANGE,
+                   "Min expected loss": AQUA, "Min CVaR": PURPLE, "Max return, CVaR ≤ book": BLUE,
+                   "Max return, EL ≤ book": "#c9a227"}
+BAND_COLORS = {"A": "#1baf7a", "B": "#2a78d6", "C": "#7d5bd6", "D": "#eb6834", "E–G": "#b23a1e"}
+
+
+def frontier_plot(front, strategies, seg=None, alpha=0.99, ax=None, title="Expected return vs tail risk (ex ante)"):
+    """Segments (dots, by LendingClub band), the frontier and the strategies.
+    Strategies at the same point are labelled together."""
+    ax = ax or plt.subplots(figsize=(7.2, 4.6))[1]
+    col = f"cvar_{alpha:g}"
+    if seg is not None:
+        for b, g in seg.groupby("lc_band"):
+            ax.scatter(g[col] * 100, g["expected_return"] * 100, s=28, color=BAND_COLORS.get(b, MUTED),
+                       alpha=0.6, edgecolor="white", label=f"segment, LendingClub {b}")
+    ax.plot(front[col] * 100, front["expected_return"] * 100, color=INK, lw=1.5, label="frontier")
+    pts = strategies[[col, "expected_return"]].round(5)
+    for (x, y), names in pts.groupby([col, "expected_return"]).groups.items():
+        ax.plot(x * 100, y * 100, "D", ms=8, color=INK, mec="white")
+        ax.annotate("\n".join(names), (x * 100, y * 100), textcoords="offset points", xytext=(8, -4),
+                    fontsize=7, color=INK, va="top")
+    ax.set(xlabel=f"{alpha:.0%} CVaR (loss, % of funded amount; negative = still a gain)",
+           ylabel="Expected lifetime net return (%)", title=title)
+    ax.legend(fontsize=7, loc="lower left")
+    return ax
+
+
+def allocation_plot(by_band, ax=None, title="Allocation by LendingClub grade"):
+    """by_band: strategies x LendingClub band weights."""
+    ax = ax or plt.subplots(figsize=(6.8, 4.2))[1]
+    t = by_band.iloc[::-1]
+    left = np.zeros(len(t))
+    for b in t.columns:
+        ax.barh(t.index, t[b] * 100, left=left, color=BAND_COLORS.get(b, MUTED), height=0.65, label=b)
+        left += t[b].to_numpy() * 100
+    ax.set(xlabel="Share of portfolio (%)", title=title, xlim=(0, 100))
+    ax.grid(axis="y", visible=False)
+    ax.legend(ncol=5, fontsize=8, loc="lower center", bbox_to_anchor=(0.5, -0.32))
+    return ax
+
+
+def strategy_outcomes_plot(table, ax=None, title="Expected vs realised lifetime net return, 2015 loans"):
+    ax = ax or plt.subplots(figsize=(7.2, 4.2))[1]
+    y = np.arange(len(table))[::-1]
+    ax.barh(y + 0.2, table["expected_return"] * 100, height=0.4, color=MUTED, label="expected")
+    ax.barh(y - 0.2, table["realised_return"] * 100, height=0.4, color=BLUE, label="realised")
+    book = table.loc["Whole book", "realised_return"] * 100 if "Whole book" in table.index else None
+    if book is not None:
+        ax.axvline(book, color=INK, lw=1, ls="--", label="whole book, realised")
+    ax.set_yticks(y, table.index)
+    ax.set(xlabel="Lifetime net return per dollar (%)", title=title)
+    ax.grid(axis="y", visible=False)
+    ax.legend(fontsize=8, ncol=3, loc="lower center", bbox_to_anchor=(0.4, -0.3))
+    return ax
+
+
+def segment_scatter(seg, ax=None, title="Segments: expected vs realised return"):
+    """Each segment (our grade x LendingClub band), sized by exposure."""
+    ax = ax or plt.subplots(figsize=(6.4, 4.6))[1]
+    size = seg["exposure"] / seg["exposure"].max() * 400
+    for b, g in seg.groupby("lc_band"):
+        ax.scatter(g["expected_return"] * 100, g["realised_return"] * 100, s=size[g.index], alpha=0.75,
+                   color=BAND_COLORS.get(b, MUTED), edgecolor="white", label=f"LendingClub {b}")
+    lo = min(seg["expected_return"].min(), seg["realised_return"].min()) * 100 - 1
+    hi = max(seg["expected_return"].max(), seg["realised_return"].max()) * 100 + 1
+    ax.plot([lo, hi], [lo, hi], color=MUTED, lw=1, ls="--", label="realised = expected")
+    ax.set(xlabel="Expected lifetime net return (%)", ylabel="Realised lifetime net return (%)", title=title)
+    ax.legend(fontsize=7, loc="upper left")
+    return ax

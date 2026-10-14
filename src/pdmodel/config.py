@@ -183,3 +183,14 @@ STRESS_SENSITIVITY = {
 }
 STRESS_CURVE_QUANTILES = [0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
 REVERSE_STRESS_THRESHOLDS = [0.08, 0.10, 0.15, 0.20]
+
+# --- Portfolio optimisation (lifetime, per dollar funded) ---------------------
+SERVICING_FEE = 0.01           # LendingClub's investor fee: 1% of every borrower payment
+CHARGEOFF_LAG_MONTHS = 5       # principal stays outstanding ~5 months after the last payment
+OPT_MIN_LOANS = 500            # segments (our grade x LendingClub band) with fewer loans are left out
+OPT_MAX_WEIGHT = 0.10          # concentration limit per segment
+OPT_BAND_CAP = 0.35            # limit per LendingClub grade band
+OPT_ALPHA = 0.99               # CVaR level
+OPT_SCENARIOS = 10_000
+OPT_SEED = 11
+OPT_FRONTIER_POINTS = 12

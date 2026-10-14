@@ -1,6 +1,6 @@
 """End-to-end run: data -> audit -> scorecard -> challenger -> validation ->
 recalibration -> uncertainty -> sensitivity -> decision -> portfolio risk ->
-stress testing -> reports."""
+stress testing -> portfolio optimisation -> reports."""
 from __future__ import annotations
 
 import json
@@ -19,6 +19,7 @@ from . import calibration as K
 from . import config as C
 from . import portfolio as P
 from . import sensitivity as SE
+from . import optimisation as O
 from . import simulation as MC
 from . import stress as ST
 from . import validation as V
@@ -188,6 +189,10 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
     say("   stress scenarios ...")
     R["portfolio"]["stress"] = run_stress(R["portfolio"]["loans"], oot, cm, R["portfolio"]["rho_loans"], vint,
                                           R["portfolio"]["rho_estimate"], n_sims, fig_dir, tab_dir)
+    say("   portfolio optimisation ...")
+    R["portfolio"]["optimisation"] = run_optimisation(R["portfolio"]["loans"], oot, hist, cm,
+                                                      R["portfolio"]["rho_loans"], R["portfolio"]["rho_estimate"],
+                                                      fig_dir, tab_dir)
     pnotes = reports.load_commentary(rd / "portfolio_commentary.md")
     (rd / "portfolio_risk_report.md").write_text(reports.portfolio_report(R["portfolio"], pnotes))
     C.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -356,6 +361,70 @@ def run_stress(port: pd.DataFrame, oot: pd.DataFrame, model, rho, vintages: pd.D
     out["curves"].to_csv(tab_dir / "stress_economy_curve.csv")
     reverse.to_csv(tab_dir / "stress_reverse.csv")
     anchor.to_csv(tab_dir / "stress_implied_economy_by_vintage.csv")
+    return out
+
+
+def run_optimisation(port: pd.DataFrame, oot: pd.DataFrame, hist: pd.DataFrame, model, rho, rho_est: dict,
+                     fig_dir: Path, tab_dir: Path) -> dict:
+    """Allocate across segments (our grade x LendingClub band) of the 2015 book using
+    origination-time inputs, then score every strategy on what the loans returned."""
+    fee, alpha = C.SERVICING_FEE, C.OPT_ALPHA
+    carry = O.carry_factors(hist)
+    seg, lab, terms = O.segment_inputs(port, oot, carry, fee, C.OPT_MIN_LOANS, C.CHARGEOFF_LAG_MONTHS)
+    R = O.scenario_returns(port, terms, lab, seg.index, rho, C.OPT_SCENARIOS, C.OPT_SEED)
+    mu, el = seg["expected_return"].to_numpy(), seg["el_rate"].to_numpy()
+    seg[f"cvar_{alpha:g}"] = [O.cvar(R[:, k], alpha) for k in range(len(seg))]
+    cons = O.Constraints(w_max=C.OPT_MAX_WEIGHT, groups=O.group_caps(seg, "lc_band", C.OPT_BAND_CAP))
+    W = O.run_strategies(mu, el, R, seg, cons, alpha)
+    table = O.strategy_table(W, mu, el, R, seg, alpha)
+    weights = pd.DataFrame(W, index=seg.index)
+    by_band = weights.groupby(seg["lc_band"]).sum().T
+    by_grade = weights.groupby(seg["grade"]).sum().T
+    front = O.frontier(mu, el, R, cons, alpha, C.OPT_FRONTIER_POINTS)
+    gap = O.gap_by_band(port, oot, carry, fee)
+
+    # the same strategies with two other sources of expected return
+    hist_cells = O.segment_labels(model.grade(hist), hist["grade"])
+    port_pi = port.copy()
+    port_pi["pd"] = O.price_informed_pd(port["pd"], O.segment_labels(port["grade"], oot["grade"]), hist_cells,
+                                        hist["default"], model.predict_pd(hist))
+    seg_pi, lab_pi, terms_pi = O.segment_inputs(port_pi, oot, carry, fee, C.OPT_MIN_LOANS, C.CHARGEOFF_LAG_MONTHS)
+    seg_pi = seg_pi.reindex(seg.index)
+    R_pi = O.scenario_returns(port_pi, terms_pi, lab_pi, seg.index, asset_correlation(port_pi["pd"], rho_est),
+                              C.OPT_SCENARIOS, C.OPT_SEED)
+    mu_h = O.historical_segment_returns(hist, hist_cells, seg.index, fee).to_numpy()
+    inputs = {"Scorecard model": (mu, el, R),
+              "Price-informed model": (seg_pi["expected_return"].to_numpy(), seg_pi["el_rate"].to_numpy(), R_pi),
+              "Segment history": (mu_h, el, R - mu + mu_h)}
+    sens = {}
+    for name, (m, e, r) in inputs.items():
+        t = O.strategy_table(O.run_strategies(m, e, r, seg, cons, alpha), m, e, r, seg, alpha)
+        sens[name] = t[["expected_return", "realised_return"]]
+    sens = pd.concat(sens, axis=1)
+    hindsight = O.optimise(seg["realised_return"].to_numpy(), el, R, "max_return", cons, alpha)
+    hindsight_return = float(hindsight @ seg["realised_return"])
+    inputs_by_segment = pd.DataFrame({"scorecard_model": mu, "price_informed": seg_pi["expected_return"],
+                                      "segment_history": mu_h, "realised_2015": seg["realised_return"]},
+                                     index=seg.index)
+    corr = inputs_by_segment.corr().loc[["scorecard_model", "price_informed", "segment_history"], "realised_2015"]
+
+    _save(plots.frontier_plot(front, table, seg, alpha), fig_dir / "optimisation_frontier.png")
+    _save(plots.allocation_plot(by_band), fig_dir / "optimisation_allocation.png")
+    _save(plots.strategy_outcomes_plot(table), fig_dir / "optimisation_expected_vs_realised.png")
+    _save(plots.segment_scatter(seg), fig_dir / "optimisation_segments.png")
+
+    out = {"carry": carry, "segments": seg, "strategies": table, "weights": weights, "by_band": by_band,
+           "by_grade": by_grade, "frontier": front, "gap": gap, "input_sensitivity": sens,
+           "hindsight_return": hindsight_return, "input_correlation": corr,
+           "inputs_by_segment": inputs_by_segment, "coverage": float(seg["exposure"].sum() / port["exposure"].sum())}
+    carry.to_csv(tab_dir / "optimisation_carry_factors.csv")
+    seg.to_csv(tab_dir / "optimisation_segments.csv")
+    table.to_csv(tab_dir / "optimisation_strategies.csv")
+    weights.to_csv(tab_dir / "optimisation_weights.csv")
+    front.to_csv(tab_dir / "optimisation_frontier.csv")
+    gap.to_csv(tab_dir / "optimisation_gap_by_band.csv")
+    sens.to_csv(tab_dir / "optimisation_input_sensitivity.csv")
+    inputs_by_segment.to_csv(tab_dir / "optimisation_inputs_by_segment.csv")
     return out
 
 

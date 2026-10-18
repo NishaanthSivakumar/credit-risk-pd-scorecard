@@ -19,9 +19,11 @@ the way a bank's credit risk and model validation teams would do it, and extende
   anchored to LendingClub's own recession vintages, with a reverse stress test
 - **Portfolio optimisation**: allocation across loan segments (expected return, expected loss and
   CVaR objectives, solved as linear programmes), backtested on what the loans actually returned
+- **Monitoring and governance**: quarterly stability, data-quality, early-default and performance
+  monitoring on 2016–18 loans with alerts and triggers, and a [model card](MODEL_CARD.md)
 - Auto-generated reports: [`validation_report.md`](reports/validation_report.md),
-  [`data_audit.md`](reports/data_audit.md), [`portfolio_risk_report.md`](reports/portfolio_risk_report.md)
-  and a [limitations register](reports/limitations_register.md)
+  [`data_audit.md`](reports/data_audit.md), [`portfolio_risk_report.md`](reports/portfolio_risk_report.md),
+  [`monitoring_report.md`](reports/monitoring_report.md) and a [limitations register](reports/limitations_register.md)
 
 ## Results
 
@@ -65,12 +67,17 @@ over the loans' life, a point above buying the whole book (5.30%) and close to t
 concentrated money in high-rate loans, where the PD, prepayment and recovery inputs were all most
 wrong. It forecast 14.9% and earned 3.7%.
 
+**Monitoring:** the score distribution stayed stable, but borrowers in 2016–17 stopped paying in their
+first year 30–50% more often than the PDs implied, while the mean PD fell. Monitoring triggers
+recalibration by late 2016 and redevelopment by late 2017, years before those loans matured.
+
 ![Default rate by score decile, out-of-time](reports/figures/rank_ordering_oot.png)
 
 ## Project structure
 
 ```
 ├── IMPLEMENTATION.md                 improvement roadmap and progress tracker
+├── MODEL_CARD.md                     model card and governance checklist
 ├── notebooks/
 │   ├── 01_data_and_target.ipynb      sample definition, target, vintage analysis, splits
 │   ├── 02_woe_binning_iv.ipynb       WoE bins, IV ranking
@@ -80,7 +87,8 @@ wrong. It forecast 14.9% and earned 3.7%.
 │   ├── 06_sensitivity_and_decision.ipynb        data audit, sensitivity, validation decision
 │   ├── 07_portfolio_risk.ipynb                  LGD/EAD, expected loss, Monte Carlo VaR/ES
 │   ├── 08_stress_testing.ipynb                  recession and rate scenarios, reverse stress test
-│   └── 09_portfolio_optimisation.ipynb          allocation strategies, backtest on realised returns
+│   ├── 09_portfolio_optimisation.ipynb          allocation strategies, backtest on realised returns
+│   └── 10_monitoring.ipynb                      quarterly monitoring, alerts and triggers
 ├── src/pdmodel/
 │   ├── config.py        every setting (dates, thresholds, scaling) in one place
 │   ├── data.py          loading, target definition, feature engineering, splits
@@ -96,6 +104,7 @@ wrong. It forecast 14.9% and earned 3.7%.
 │   ├── simulation.py    one-factor Gaussian Monte Carlo, VaR/ES, correlation
 │   ├── stress.py        stress scenarios, vulnerability, reverse stress test
 │   ├── optimisation.py  returns per dollar, CVaR linear programmes, strategy backtest
+│   ├── monitoring.py    stability, data quality, early default, alerts and triggers
 │   ├── plots.py         charts
 │   ├── reports.py       report writers
 │   └── pipeline.py      end-to-end run
@@ -134,7 +143,7 @@ The pipeline writes every table and figure plus the three reports, inserting the
 `reports/commentary.md` and `reports/portfolio_commentary.md`. Random seeds are fixed in
 `config.py`, so a re-run reproduces every number.
 
-The notebooks (01 → 09) run the same steps one at a time and display every result, with the
+The notebooks (01 → 10) run the same steps one at a time and display every result, with the
 findings at the end of each. They call the code in `src/pdmodel/`, so the notebooks, the pipeline
 and the tests all use the same calculations. Run them in order: each saves what the next one needs
 to `data/processed/`.
@@ -167,6 +176,7 @@ without the real data (run the pipeline with
 | Same random draws for every stress scenario | Differences between scenarios are scenario effects, not simulation noise |
 | Optimise over segments (our grade × LendingClub grade) | An investor sees both at origination; segment returns are stable enough to estimate, single loans are not |
 | Backtest on realised returns | An optimiser's forecast is only as good as its inputs; the 2015 outcomes show where they were wrong |
+| First-year defaults as the early warning | A lifetime PD cannot be checked for 36 months; first-year defaults can be measured after 15 |
 
 ## Limitations
 

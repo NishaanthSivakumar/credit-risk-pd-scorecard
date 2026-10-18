@@ -26,7 +26,7 @@ Data audit: [`data_audit.md`](data_audit.md). Limitations: [`limitations_registe
 | 7 | Out-of-time performance | GREEN | GREEN | Gini falls 6.2% from train to out-of-time; rank ordering monotonic across deciles |
 | 8 | Challenger comparison | GREEN | GREEN | Challenger Gini minus scorecard +0.022 (95% CI +0.018 to +0.024); material at ≥ 0.03 |
 | 9 | Sensitivity analysis | GREEN | GREEN | Out-of-time Gini range across alternative specifications 0.015; coefficient uncertainty moves mean PD by ±1.7% |
-| 10 | Model limitations | AMBER | AMBER | 11 limitations in the register, 3 rated High |
+| 10 | Model limitations | AMBER | AMBER | 12 limitations in the register, 3 rated High |
 
 **Decision: Recalibrate. The scorecard ranks risk consistently, but its PD level does not hold
 from one year to the next, and a recalibration fitted on 2014 loans is not enough for 2015.**
@@ -76,7 +76,7 @@ stability, out-of-time performance, challenger comparison and sensitivity. The t
 | Charged-off and defaulted loans are defaults | PASS | Charged Off, Default, Does not meet the credit policy. Status:Charged Off map to 1 |
 | Unresolved loans excluded, and rare in modelled vintages | PASS | 0.02% of 2007–2015 36-month loans unresolved (highest: 2015, 0.05%) |
 | Every modelled vintage observed for its full 36-month term | PASS | Snapshot Mar 2019; shortest window 39 months |
-| No post-origination field among the candidate features | PASS | 18 candidate features checked against 22 outcome fields |
+| No post-origination field among the candidate features | PASS | 18 candidate features checked against 24 outcome fields |
 | Final model uses no post-origination field | PASS | 9 model features checked |
 | Samples separated in time (train/test < calibration < out-of-time) | PASS | train 2007-06–2013-12 · test 2007-06–2013-12 · calib 2014-01–2014-12 · oot 2015-01–2015-12 |
 | Out-of-range values below 0.1% of loans | PASS | 9 out-of-range values across 621,022 loans |
@@ -466,6 +466,7 @@ One coefficient at a time, ±1 standard error (largest effects):
 | L9 | Recoveries may be incomplete for recent charge-offs | Measured LGD may be overstated for later vintages | Low | LGD measured on 2007–2014 charge-offs and checked by issue year |
 | L10 | One-factor Gaussian dependence | No sector or regional factors, no tail dependence beyond ρ, LGD independent of the economy | Medium | Correlation sensitivity grid; stress scenarios (Phase 3) add downturn LGD and higher correlation |
 | L11 | Rare missing values get an unreliable WoE | A blank income, loan-to-income or inquiry count lowers the PD by 13–19%, because those bins were fitted on 4–24 training loans | Medium | Give any "Missing" bin below 5% of training loans the riskiest bin's WoE, or refer the application |
+| L12 | Inputs outside the training range | LendingClub accepted debt-to-income ratios above the training maximum of 35 from late 2014; up to 6.6% of loans in a quarter fall outside the training range, and the scorecard places them in its top bin without evidence for that range | Medium | Monitor the out-of-range share quarterly; re-bin debt-to-income at redevelopment on data covering the current range |
 
 Full register with mitigations: [`limitations_register.md`](limitations_register.md).
 
@@ -482,7 +483,7 @@ Full register with mitigations: [`limitations_register.md`](limitations_register
 | 7 | Out-of-time performance | GREEN | Gini falls 6.2% from train to out-of-time; rank ordering monotonic across deciles |
 | 8 | Challenger comparison | GREEN | Challenger Gini minus scorecard +0.022 (95% CI +0.018 to +0.024); material at ≥ 0.03 |
 | 9 | Sensitivity analysis | GREEN | Out-of-time Gini range across alternative specifications 0.015; coefficient uncertainty moves mean PD by ±1.7% |
-| 10 | Model limitations | AMBER | 11 limitations in the register, 3 rated High |
+| 10 | Model limitations | AMBER | 12 limitations in the register, 3 rated High |
 
 ## 12. Recommendations
 

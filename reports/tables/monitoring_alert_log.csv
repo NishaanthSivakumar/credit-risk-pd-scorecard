@@ -1,0 +1,55 @@
+quarter,metric,status,value,amber_at,red_at,watches
+2018Q3,Score PSI,AMBER,0.11614939310574617,0.1,0.25,shift in the score distribution
+2018Q4,Score PSI,AMBER,0.11129169281624098,0.1,0.25,shift in the score distribution
+2014Q1,Largest feature CSI,AMBER,0.11146399343419651,0.1,0.25,shift in any one input
+2015Q1,Largest feature CSI,AMBER,0.1007798086837884,0.1,0.25,shift in any one input
+2015Q4,Largest feature CSI,AMBER,0.12585798772595233,0.1,0.25,shift in any one input
+2016Q1,Largest feature CSI,AMBER,0.11962379867178781,0.1,0.25,shift in any one input
+2016Q2,Largest feature CSI,AMBER,0.12389054654358436,0.1,0.25,shift in any one input
+2016Q3,Largest feature CSI,AMBER,0.10029620681646394,0.1,0.25,shift in any one input
+2017Q1,Largest feature CSI,AMBER,0.11744492673410212,0.1,0.25,shift in any one input
+2017Q2,Largest feature CSI,AMBER,0.13513157900676204,0.1,0.25,shift in any one input
+2017Q3,Largest feature CSI,AMBER,0.13889552047005116,0.1,0.25,shift in any one input
+2017Q4,Largest feature CSI,RED,0.2521630381821543,0.1,0.25,shift in any one input
+2018Q1,Largest feature CSI,RED,0.28153946943199754,0.1,0.25,shift in any one input
+2018Q2,Largest feature CSI,RED,0.2794820083950533,0.1,0.25,shift in any one input
+2018Q3,Largest feature CSI,RED,0.25568816183803444,0.1,0.25,shift in any one input
+2018Q4,Largest feature CSI,RED,0.2513693106799986,0.1,0.25,shift in any one input
+2014Q3,Out-of-range inputs,AMBER,0.014632343884714866,0.005,0.02,values outside the training range
+2014Q4,Out-of-range inputs,RED,0.033166733306677326,0.005,0.02,values outside the training range
+2015Q1,Out-of-range inputs,RED,0.03532032244378447,0.005,0.02,values outside the training range
+2015Q2,Out-of-range inputs,RED,0.03458316464762854,0.005,0.02,values outside the training range
+2015Q3,Out-of-range inputs,RED,0.03320782416028926,0.005,0.02,values outside the training range
+2015Q4,Out-of-range inputs,RED,0.034814873292808086,0.005,0.02,values outside the training range
+2016Q1,Out-of-range inputs,RED,0.051300457761131915,0.005,0.02,values outside the training range
+2016Q2,Out-of-range inputs,RED,0.04819083139917088,0.005,0.02,values outside the training range
+2016Q4,Out-of-range inputs,AMBER,0.005991892576640487,0.005,0.02,values outside the training range
+2017Q1,Out-of-range inputs,AMBER,0.007788979422731667,0.005,0.02,values outside the training range
+2017Q2,Out-of-range inputs,AMBER,0.013903119123273458,0.005,0.02,values outside the training range
+2017Q3,Out-of-range inputs,RED,0.031010915026012446,0.005,0.02,values outside the training range
+2017Q4,Out-of-range inputs,RED,0.05935145203623741,0.005,0.02,values outside the training range
+2018Q1,Out-of-range inputs,RED,0.06186018140349016,0.005,0.02,values outside the training range
+2018Q2,Out-of-range inputs,RED,0.05868467641466133,0.005,0.02,values outside the training range
+2018Q3,Out-of-range inputs,RED,0.061513385580637236,0.005,0.02,values outside the training range
+2018Q4,Out-of-range inputs,RED,0.06619489901223648,0.005,0.02,values outside the training range
+2017Q4,Mean PD,AMBER,-0.1128530463983094,0.1,0.2,change in average predicted risk
+2018Q1,Mean PD,AMBER,-0.13635295117563706,0.1,0.2,change in average predicted risk
+2018Q2,Mean PD,AMBER,-0.13195840334846987,0.1,0.2,change in average predicted risk
+2018Q3,Mean PD,AMBER,-0.15364147423752128,0.1,0.2,change in average predicted risk
+2018Q4,Mean PD,AMBER,-0.14857745997982275,0.1,0.2,change in average predicted risk
+2014Q1,Early default vs PD,AMBER,-0.13908816684239367,0.1,0.2,first-year defaults vs PDs
+2015Q2,Early default vs PD,AMBER,0.14699941430727925,0.1,0.2,first-year defaults vs PDs
+2015Q3,Early default vs PD,AMBER,0.16456748520447917,0.1,0.2,first-year defaults vs PDs
+2015Q4,Early default vs PD,RED,0.23130268213983518,0.1,0.2,first-year defaults vs PDs
+2016Q1,Early default vs PD,RED,0.348936361679794,0.1,0.2,first-year defaults vs PDs
+2016Q2,Early default vs PD,RED,0.4461384816256486,0.1,0.2,first-year defaults vs PDs
+2016Q3,Early default vs PD,RED,0.5017490107322717,0.1,0.2,first-year defaults vs PDs
+2016Q4,Early default vs PD,RED,0.41575693517280143,0.1,0.2,first-year defaults vs PDs
+2017Q1,Early default vs PD,RED,0.29961343645432814,0.1,0.2,first-year defaults vs PDs
+2017Q2,Early default vs PD,RED,0.4013909157549127,0.1,0.2,first-year defaults vs PDs
+2017Q3,Early default vs PD,RED,0.40199683701887245,0.1,0.2,first-year defaults vs PDs
+2017Q4,Early default vs PD,RED,0.371919574298317,0.1,0.2,first-year defaults vs PDs
+2015Q1,Calibration gap,AMBER,-0.011751120258685521,0.01,0.03,"mean PD vs default rate, matured"
+2015Q2,Calibration gap,AMBER,-0.01978325110275239,0.01,0.03,"mean PD vs default rate, matured"
+2015Q3,Calibration gap,AMBER,-0.015962495611726524,0.01,0.03,"mean PD vs default rate, matured"
+2015Q4,Calibration gap,AMBER,-0.0193761345299657,0.01,0.03,"mean PD vs default rate, matured"

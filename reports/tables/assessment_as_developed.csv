@@ -8,4 +8,4 @@
 7,Out-of-time performance,GREEN,Gini falls 6.2% from train to out-of-time; rank ordering monotonic across deciles
 8,Challenger comparison,GREEN,Challenger Gini minus scorecard +0.022 (95% CI +0.018 to +0.024); material at ≥ 0.03
 9,Sensitivity analysis,GREEN,Out-of-time Gini range across alternative specifications 0.015; coefficient uncertainty moves mean PD by ±1.7%
-10,Model limitations,AMBER,"11 limitations in the register, 3 rated High"
+10,Model limitations,AMBER,"12 limitations in the register, 3 rated High"

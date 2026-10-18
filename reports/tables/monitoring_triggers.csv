@@ -1,0 +1,7 @@
+action,rule,fired
+Recalibrate,Calibration gap AMBER or RED in the latest matured year,True
+Recalibrate,Any grade failing the binomial test at 1% in the latest matured year,True
+Recalibrate,Early default vs PD AMBER or RED for two quarters in a row,True
+Redevelop,Score PSI or largest feature CSI RED in any quarter,True
+Redevelop,Gini fall RED in any matured quarter,False
+Redevelop,Early default vs PD RED for four quarters in a row (recalibration not keeping up),True

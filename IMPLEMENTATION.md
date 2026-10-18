@@ -20,7 +20,7 @@ calculations live in `src/pdmodel/`, where they are tested and shared with the p
 | 2 | Credit portfolio risk engine | High | ✅ |
 | 3 | Macroeconomic stress testing | High | ✅ |
 | 4 | Credit portfolio optimisation | High | ✅ |
-| 5 | Model monitoring and governance | Medium | ⬜ |
+| 5 | Model monitoring and governance | Medium | ✅ |
 | 6 | Engineering and presentation | Medium | ⬜ |
 | 7 | Documentation and recruiter presentation | High | ⬜ |
 
@@ -277,28 +277,37 @@ Deliverables: `notebooks/09_portfolio_optimisation.ipynb`, `src/pdmodel/optimisa
 
 ## Phase 5: Model monitoring and governance
 
-**Priority:** Medium · **Status:** ⬜
+**Priority:** Medium · **Status:** ✅
 
 ### 5.1 Monitoring
 
 | Task | Status | How |
 |---|---|---|
-| PSI and CSI by quarter | ⬜ | 2016–18 loans as the production stream |
-| AUC, Gini, KS, calibration intercept and slope | ⬜ | Matured vintages only |
-| Expected vs observed default rates | ⬜ | Matured vintages only |
-| Performance by borrower segment | ⬜ | |
-| Input distribution change detection and alerts | ⬜ | Thresholds in `config.py` |
-| Recalibration and redevelopment triggers | ⬜ | Linked to the Phase 1 decision criteria |
+| PSI and CSI by quarter | ✅ | 2016–18 loans as the production stream, against the training sample, in `src/pdmodel/monitoring.py` |
+| AUC, Gini, KS, calibration intercept and slope | ✅ | Matured vintages (2014–15), by quarter |
+| Expected vs observed default rates | ✅ | Matured vintages; first-year defaults vs PD as the early warning for 2016–17 |
+| Performance by borrower segment | ✅ | First-year defaults by segment on 2016–17 loans |
+| Input distribution change detection and alerts | ✅ | Missing values and out-of-range inputs; RAG thresholds (`MON_*` in `config.py`); alert grid and log |
+| Recalibration and redevelopment triggers | ✅ | Linked to the Phase 1 decision rules |
 
 ### 5.2 Model card
 
 | Task | Status |
 |---|---|
-| `MODEL_CARD.md` with the 15 required sections | ⬜ |
-| Model limitations documentation | ⬜ |
-| Model governance checklist | ⬜ |
+| `MODEL_CARD.md` with the 15 required sections | ✅ |
+| Model limitations documentation | ✅ (register updated: L12, inputs outside the training range) |
+| Model governance checklist | ✅ (in `MODEL_CARD.md`) |
 
-Notebook: `notebooks/10_monitoring.ipynb`. Tests: `tests/test_monitoring.py`.
+Deliverables: `notebooks/10_monitoring.ipynb`, `src/pdmodel/monitoring.py`, `reports/monitoring_report.md`,
+`MODEL_CARD.md`. Tests: `tests/test_monitoring.py`.
+
+### Phase 5 outcome
+
+- The score PSI stays below 0.10 until 2018Q3, but first-year defaults run RED against the PDs from
+  2015Q4 onward (+30% to +50% across 2016–17), while the mean PD falls 15% by 2018.
+- Debt-to-income exceeds the training maximum for up to 6.6% of loans in a quarter; revolving
+  utilisation turns RED from 2017Q4.
+- Recalibration is triggered by late 2016 and redevelopment by late 2017, years before the loans mature.
 
 ---
 
@@ -310,10 +319,10 @@ Notebook: `notebooks/10_monitoring.ipynb`. Tests: `tests/test_monitoring.py`.
 
 | Task | Status |
 |---|---|
-| Module tests (written during Phases 1–5) | 🔄 Phases 1–4 done |
+| Module tests (written during Phases 1–5) | ✅ |
 | GitHub Actions workflow running the tests on every push and pull request | ⬜ |
 | Pinned dependencies | ⬜ |
-| Random seeds for every stochastic step | 🔄 Phases 1–4 done |
+| Random seeds for every stochastic step | ✅ |
 | Reproducibility instructions | ⬜ |
 
 ### 6.2 Dashboard

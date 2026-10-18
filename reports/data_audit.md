@@ -11,7 +11,7 @@
 | Charged-off and defaulted loans are defaults | PASS | Charged Off, Default, Does not meet the credit policy. Status:Charged Off map to 1 | target definition | critical |
 | Unresolved loans excluded, and rare in modelled vintages | PASS | 0.02% of 2007–2015 36-month loans unresolved (highest: 2015, 0.05%) | target definition | minor |
 | Every modelled vintage observed for its full 36-month term | PASS | Snapshot Mar 2019; shortest window 39 months | target definition | critical |
-| No post-origination field among the candidate features | PASS | 18 candidate features checked against 22 outcome fields | data quality | critical |
+| No post-origination field among the candidate features | PASS | 18 candidate features checked against 24 outcome fields | data quality | critical |
 | Final model uses no post-origination field | PASS | 9 model features checked | data quality | critical |
 | Samples separated in time (train/test < calibration < out-of-time) | PASS | train 2007-06–2013-12 · test 2007-06–2013-12 · calib 2014-01–2014-12 · oot 2015-01–2015-12 | data quality | critical |
 | Out-of-range values below 0.1% of loans | PASS | 9 out-of-range values across 621,022 loans | data quality | minor |

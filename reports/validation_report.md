@@ -25,7 +25,7 @@ Data audit: [`data_audit.md`](data_audit.md). Limitations: [`limitations_registe
 | 6 | Population stability | GREEN | GREEN | Score PSI 0.001; largest feature CSI 0.098 |
 | 7 | Out-of-time performance | GREEN | GREEN | Gini falls 6.2% from train to out-of-time; rank ordering monotonic across deciles |
 | 8 | Challenger comparison | GREEN | GREEN | Challenger Gini minus scorecard +0.022 (95% CI +0.018 to +0.024); material at ≥ 0.03 |
-| 9 | Sensitivity analysis | GREEN | GREEN | Out-of-time Gini range across alternative specifications 0.015; coefficient uncertainty moves mean PD by ±1.7% |
+| 9 | Sensitivity analysis | GREEN | GREEN | Out-of-time Gini range across alternative specifications 0.015; coefficient uncertainty moves mean PD by ±1.6% |
 | 10 | Model limitations | AMBER | AMBER | 12 limitations in the register, 3 rated High |
 
 **Decision: Recalibrate. The scorecard ranks risk consistently, but its PD level does not hold
@@ -339,7 +339,7 @@ Gini materiality threshold, and the challenger's calibration fails too (ratio 0.
 the same blind spot over time, so it is not a reason to replace the interpretable scorecard. It
 also uses `mort_acc`, which the scorecard excludes because it was only recorded from 2012.
 
-## 9. Sensitivity analysis
+## 9. Sensitivity analysis and stress testing
 
 All on the out-of-time sample with the recalibrated model.
 
@@ -375,8 +375,8 @@ All on the out-of-time sample with the recalibrated model.
 
 |  | base | p2.5 | p97.5 | relative_half_width |
 |---|---|---|---|---|
-| mean_pd | 0.1318 | 0.1297 | 0.1341 | 1.67% |
-| gini | 0.2961 | 0.2933 | 0.2981 | 0.81% |
+| mean_pd | 0.1318 | 0.1298 | 0.1340 | 1.60% |
+| gini | 0.2961 | 0.2932 | 0.2982 | 0.86% |
 
 One coefficient at a time, ±1 standard error (largest effects):
 
@@ -439,7 +439,7 @@ One coefficient at a time, ±1 standard error (largest effects):
   of which defaulted, so their "Missing" bin carries a safe-looking WoE of +0.26 estimated from
   almost no data. An applicant could lower their PD by leaving a field empty. Blank `fico` instead
   gets a neutral WoE (no missing values in training) and costs 0.046 Gini.
-- *Coefficients:* parameter uncertainty moves the mean PD by ±1.7% and Gini by under 0.003. The
+- *Coefficients:* parameter uncertainty moves the mean PD by ±1.6% and Gini by under 0.003. The
   estimates are precise; the calibration problem is not one of estimation noise.
 - *Sub-populations:* ranking is weakest where borrowers are riskiest: Gini 0.20 for FICO below
   680, 0.21 for incomes below $40k and 0.17 for small-business loans, against 0.35 for FICO 740
@@ -450,6 +450,18 @@ One coefficient at a time, ±1 standard error (largest effects):
 - *Alternative assumptions:* across seven re-developments the out-of-time Gini stays between
   0.282 and 0.297. Training on 2007–12 only gives the lowest (0.282), from 39% fewer loans.
   Binning choices barely matter. The model is not fragile to development choices.
+
+**Stress testing** — the recalibrated PDs under macroeconomic scenarios, on the 2015 book
+(expected loss over the loans' life; full analysis in section 7 of
+[`portfolio_risk_report.md`](portfolio_risk_report.md)):
+
+|  | economy | mean_pd | el_rate | vs_base | stressed_var_0.99 |
+|---|---|---|---|---|---|
+| Base | average | 13.18% | 6.35% | ×1.00 | 13.4% |
+| Mild recession | 1 in 10 | 19.72% | 10.32% | ×1.62 | 20.1% |
+| Severe recession | 1 in 50 | 27.02% | 15.29% | ×2.41 | 29.2% |
+| Interest rate shock | 1 in 5 | 17.05% | 8.26% | ×1.30 | 16.6% |
+
 
 ## 10. Model limitations
 
@@ -464,7 +476,7 @@ One coefficient at a time, ±1 standard error (largest effects):
 | L7 | Few independent economic periods, none in a recession | 12 issue months in the out-of-time year, so the PD level is known less precisely than loan counts suggest; vintages with enough loans (2009–2015) imply a default correlation of only 0.004–0.013 | Medium | Report month-block intervals alongside loan-level ones; use the Basel retail correlation rather than the data estimate, with a sensitivity grid |
 | L8 | No protected attributes available | Fairness across protected groups cannot be tested; `addr_state` is excluded but other inputs may act as proxies | Medium | Subgroup performance by income, home ownership and purpose; no fairness claims are made |
 | L9 | Recoveries may be incomplete for recent charge-offs | Measured LGD may be overstated for later vintages | Low | LGD measured on 2007–2014 charge-offs and checked by issue year |
-| L10 | One-factor Gaussian dependence | No sector or regional factors, no tail dependence beyond ρ, LGD independent of the economy | Medium | Correlation sensitivity grid; stress scenarios (Phase 3) add downturn LGD and higher correlation |
+| L10 | One-factor Gaussian dependence | No sector or regional factors, no tail dependence beyond ρ, LGD independent of the economy | Medium | Correlation sensitivity grid; the stress scenarios add downturn LGD, EAD and higher correlation |
 | L11 | Rare missing values get an unreliable WoE | A blank income, loan-to-income or inquiry count lowers the PD by 13–19%, because those bins were fitted on 4–24 training loans | Medium | Give any "Missing" bin below 5% of training loans the riskiest bin's WoE, or refer the application |
 | L12 | Inputs outside the training range | LendingClub accepted debt-to-income ratios above the training maximum of 35 from late 2014; up to 6.6% of loans in a quarter fall outside the training range, and the scorecard places them in its top bin without evidence for that range | Medium | Monitor the out-of-range share quarterly; re-bin debt-to-income at redevelopment on data covering the current range |
 
@@ -482,7 +494,7 @@ Full register with mitigations: [`limitations_register.md`](limitations_register
 | 6 | Population stability | GREEN | Score PSI 0.001; largest feature CSI 0.098 |
 | 7 | Out-of-time performance | GREEN | Gini falls 6.2% from train to out-of-time; rank ordering monotonic across deciles |
 | 8 | Challenger comparison | GREEN | Challenger Gini minus scorecard +0.022 (95% CI +0.018 to +0.024); material at ≥ 0.03 |
-| 9 | Sensitivity analysis | GREEN | Out-of-time Gini range across alternative specifications 0.015; coefficient uncertainty moves mean PD by ±1.7% |
+| 9 | Sensitivity analysis | GREEN | Out-of-time Gini range across alternative specifications 0.015; coefficient uncertainty moves mean PD by ±1.6% |
 | 10 | Model limitations | AMBER | 12 limitations in the register, 3 rated High |
 
 ## 12. Recommendations
@@ -503,6 +515,28 @@ Full register with mitigations: [`limitations_register.md`](limitations_register
 5. **Monitor:** calibration-in-the-large on each new mature vintage (trigger: gap above 1 point or
    any grade failing at 1%), Gini (below 0.28), and PSI and CSI quarterly, with `purpose` and `dti`
    on a watch list.
+
+### Monitoring since validation
+
+The validated model (version 1.1) monitored on loans issued 2016–2018
+([`monitoring_report.md`](monitoring_report.md)):
+
+| action | rule | fired |
+|---|---|---|
+| Recalibrate | Calibration gap AMBER or RED in the latest matured year | **FIRED** |
+| Recalibrate | Any grade failing the binomial test at 1% in the latest matured year | **FIRED** |
+| Recalibrate | Early default vs PD AMBER or RED for two quarters in a row | **FIRED** |
+| Redevelop | Score PSI or largest feature CSI RED in any quarter | **FIRED** |
+| Redevelop | Gini fall RED in any matured quarter | not fired |
+| Redevelop | Early default vs PD RED for four quarters in a row (recalibration not keeping up) | **FIRED** |
+
+Monitoring confirms the decision and goes further. On 2016–17 loans, borrowers stopped paying within
+a year 30–50% more often than the PDs imply, while the mean PD fell 15% by 2018. Debt-to-income left
+the training range, and revolving utilisation shifted enough to turn RED from 2017Q4. The
+recalibration triggers fire from late 2016 and the redevelopment triggers from late 2017.
+Recommendation 1 (recalibrate) is therefore a stopgap: the model should be redeveloped, as set out in
+[`MODEL_CARD.md`](../MODEL_CARD.md).
+
 
 ## 13. Final validation decision
 

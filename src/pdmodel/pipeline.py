@@ -164,7 +164,7 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
     R["register"] = register
     say(f"   as developed: {R['decision']['as developed'][0]}; recalibrated: {R['decision']['recalibrated'][0]}")
 
-    # ---- figures and Phase 1 reports ------------------------------------------------------------
+    # ---- figures, data audit and metrics ------------------------------------------------------------
     _save(plots.default_rate_by_vintage(df), fig_dir / "default_rate_by_vintage.png")
     _save(plots.roc_plot({k: (y[k], pd_[k]) for k in S}), fig_dir / "roc.png")
     _save(plots.calibration_plot({k: V.calibration_table(y[k], pd_[k]) for k in S}), fig_dir / "calibration.png")
@@ -179,7 +179,6 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
         _save(plots.woe_plot(binner.bins[f].table), fig_dir / f"woe_{f}.png")
     notes = reports.load_commentary(rd / "commentary.md")
     (rd / "data_audit.md").write_text(reports.data_audit_report(R, notes))
-    (rd / "validation_report.md").write_text(reports.validation_report(R, notes))
     (rd / "metrics.json").write_text(json.dumps(metrics, indent=2, default=float))
 
     # ---- 9. portfolio risk (2015 vintage) ----------------------------------------------------------
@@ -201,6 +200,8 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
         reports.monitoring_report(R["monitoring"], reports.load_commentary(rd / "monitoring_commentary.md")))
     pnotes = reports.load_commentary(rd / "portfolio_commentary.md")
     (rd / "portfolio_risk_report.md").write_text(reports.portfolio_report(R["portfolio"], pnotes))
+    # written last: section 9 summarises the stress tests and section 12 the monitoring
+    (rd / "validation_report.md").write_text(reports.validation_report(R, notes))
     C.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     pd.to_pickle({"calibrated_model": cm, "challenger": gbm, "portfolio": R["portfolio"]["loans"]},
                  C.PROCESSED_DIR / "pipeline_outputs.pkl")

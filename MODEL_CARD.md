@@ -102,7 +102,7 @@ below 1.6. Excluded on purpose: post-origination fields (leakage), LendingClub's
 ## 9. Model assumptions
 
 - The relationship between application data and default is stable over time; only the overall default
-  level drifts, and a recalibrated intercept corrects it. **Phase 1 and monitoring show this assumption
+  level drifts, and a recalibrated intercept corrects it. **The out-of-time validation and monitoring show this assumption
   does not hold beyond about a year** (sections 11 and 13).
 - Approved applicants are representative of the population the model is used on.
 - A missing value carries the risk of the loans that were missing in training. **This fails for inputs

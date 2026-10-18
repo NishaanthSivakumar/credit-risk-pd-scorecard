@@ -21,8 +21,8 @@ calculations live in `src/pdmodel/`, where they are tested and shared with the p
 | 3 | Macroeconomic stress testing | High | ✅ |
 | 4 | Credit portfolio optimisation | High | ✅ |
 | 5 | Model monitoring and governance | Medium | ✅ |
-| 6 | Engineering and presentation | Medium | ⬜ |
-| 7 | Documentation and recruiter presentation | High | ⬜ |
+| 6 | Engineering and presentation | Medium | ✅ |
+| 7 | Documentation and recruiter presentation | High | ✅ |
 
 ---
 
@@ -313,33 +313,34 @@ Deliverables: `notebooks/10_monitoring.ipynb`, `src/pdmodel/monitoring.py`, `rep
 
 ## Phase 6: Engineering and presentation
 
-**Priority:** Medium · **Status:** ⬜
+**Priority:** Medium · **Status:** ✅
 
 ### 6.1 Testing and CI
 
-| Task | Status |
-|---|---|
-| Module tests (written during Phases 1–5) | ✅ |
-| GitHub Actions workflow running the tests on every push and pull request | ⬜ |
-| Pinned dependencies | ⬜ |
-| Random seeds for every stochastic step | ✅ |
-| Reproducibility instructions | ⬜ |
+| Task | Status | How |
+|---|---|---|
+| Module tests (written during Phases 1–5) | ✅ | `tests/`, one file per module, synthetic data only |
+| GitHub Actions workflow running the tests on every push and pull request | ✅ | `.github/workflows/ci.yml`: lint, unit tests, and the full pipeline on synthetic data |
+| Pinned dependencies | ✅ | `requirements.txt` and `dashboard/requirements.txt`, exact versions; tested in a clean environment |
+| Random seeds for every stochastic step | ✅ | `config.py`; coefficient draws use a Cholesky factor so they match across platforms |
+| Reproducibility instructions | ✅ | README section 14, including the dataset's size and SHA-256 |
 
 ### 6.2 Dashboard
 
-| Task | Status |
-|---|---|
-| ⏸ Streamlit app reading precomputed results: model performance, stability, portfolio risk, stress testing, optimisation | ⏸ |
-| ⏸ Hosting on Streamlit Community Cloud, screenshots and usage notes | ⏸ |
+| Task | Status | How |
+|---|---|---|
+| Streamlit app reading precomputed results: model performance, stability, portfolio risk, stress testing, optimisation | ✅ | `dashboard/app.py`, six tabs, reads `reports/tables/` only; tested with Streamlit's AppTest |
+| Screenshots and usage notes | ✅ | `reports/figures/dashboard_*.png`; README section 13 |
+| Hosting on Streamlit Community Cloud | ⬜ | Needs the repository owner's Streamlit account; steps in README section 13 |
 
 ---
 
 ## Phase 7: Documentation and recruiter presentation
 
-**Priority:** High · **Status:** ⬜
+**Priority:** High · **Status:** ✅
 
-| Task | Status |
-|---|---|
-| README with the 15 recommended sections | ⬜ |
-| Final model validation report (13 sections) | ⬜ |
-| Portfolio risk report (10 sections), built up from Phase 2 onward | 🔄 All 10 sections drafted; final review in Phase 7 |
+| Task | Status | How |
+|---|---|---|
+| README with the 15 recommended sections | ✅ | Rewritten: overview and lifecycle diagram, results, methods, installation, reproduction, future work |
+| Final model validation report (13 sections) | ✅ | Section 9 now covers sensitivity and stress testing; section 12 adds monitoring since validation |
+| Portfolio risk report (10 sections), built up from Phase 2 onward | ✅ | All 10 sections; internal roadmap references removed from every report |

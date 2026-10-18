@@ -162,6 +162,37 @@ def _status_md(df):
     return md(df, index=True)
 
 
+def _stress_summary(R: dict) -> str:
+    T = R.get("portfolio", {}).get("stress")
+    if T is None:
+        return ""
+    t = T["table"][["economy", "mean_pd", "el_rate", "vs_base"]]
+    r = T["risk"][["var_0.99"]].rename(columns={"var_0.99": "stressed_var_0.99"}) / 100
+    return f"""**Stress testing** — the recalibrated PDs under macroeconomic scenarios, on the {C.CALIB_YEAR + 1} book
+(expected loss over the loans' life; full analysis in section 7 of
+[`portfolio_risk_report.md`](portfolio_risk_report.md)):
+
+{md(t.join(r), {"mean_pd": PCT, "el_rate": PCT, "vs_base": "×{:.2f}".format, "stressed_var_0.99": PCT1})}
+"""
+
+
+def _monitoring_summary(R: dict, notes: dict) -> str:
+    M = R.get("monitoring")
+    if M is None:
+        return ""
+    trig = M["triggers"].reset_index()
+    trig["fired"] = trig["fired"].map({True: "**FIRED**", False: "not fired"})
+    return f"""### Monitoring since validation
+
+The validated model (version 1.1) monitored on loans issued {C.MONITOR_FIRST_YEAR}–{C.MONITOR_LAST_YEAR}
+([`monitoring_report.md`](monitoring_report.md)):
+
+{md(trig.set_index(["action", "rule"]))}
+
+{_note(notes, "monitoring")}
+"""
+
+
 def validation_report(R: dict, notes: dict) -> str:
     m = R["metrics"]
     final = R["final"]
@@ -315,7 +346,7 @@ ranks better; negative Brier/log loss = challenger more accurate).
 
 {_note(notes, "challenger")}
 
-## 9. Sensitivity analysis
+## 9. Sensitivity analysis and stress testing
 
 All on the out-of-time sample with the recalibrated model.
 
@@ -355,6 +386,8 @@ One coefficient at a time, ±1 standard error (largest effects):
 
 {_note(notes, "sensitivity")}
 
+{_stress_summary(R)}
+
 ## 10. Model limitations
 
 {md(reg.set_index("id"), {}) if len(reg) else ""}
@@ -368,6 +401,8 @@ Full register with mitigations: [`limitations_register.md`](limitations_register
 ## 12. Recommendations
 
 {_note(notes, "recommendations")}
+
+{_monitoring_summary(R, notes)}
 
 ## 13. Final validation decision
 

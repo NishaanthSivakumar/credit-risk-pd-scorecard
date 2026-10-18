@@ -110,7 +110,7 @@ also uses `mort_acc`, which the scorecard excludes because it was only recorded 
   of which defaulted, so their "Missing" bin carries a safe-looking WoE of +0.26 estimated from
   almost no data. An applicant could lower their PD by leaving a field empty. Blank `fico` instead
   gets a neutral WoE (no missing values in training) and costs 0.046 Gini.
-- *Coefficients:* parameter uncertainty moves the mean PD by ±1.7% and Gini by under 0.003. The
+- *Coefficients:* parameter uncertainty moves the mean PD by ±1.6% and Gini by under 0.003. The
   estimates are precise; the calibration problem is not one of estimation noise.
 - *Sub-populations:* ranking is weakest where borrowers are riskiest: Gini 0.20 for FICO below
   680, 0.21 for incomes below $40k and 0.17 for small-business loans, against 0.35 for FICO 740
@@ -140,6 +140,15 @@ also uses `mort_acc`, which the scorecard excludes because it was only recorded 
 5. **Monitor:** calibration-in-the-large on each new mature vintage (trigger: gap above 1 point or
    any grade failing at 1%), Gini (below 0.28), and PSI and CSI quarterly, with `purpose` and `dti`
    on a watch list.
+
+## monitoring
+
+Monitoring confirms the decision and goes further. On 2016–17 loans, borrowers stopped paying within
+a year 30–50% more often than the PDs imply, while the mean PD fell 15% by 2018. Debt-to-income left
+the training range, and revolving utilisation shifted enough to turn RED from 2017Q4. The
+recalibration triggers fire from late 2016 and the redevelopment triggers from late 2017.
+Recommendation 1 (recalibrate) is therefore a stopgap: the model should be redeveloped, as set out in
+[`MODEL_CARD.md`](../MODEL_CARD.md).
 
 ## decision
 

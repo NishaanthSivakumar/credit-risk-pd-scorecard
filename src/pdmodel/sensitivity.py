@@ -126,7 +126,8 @@ def coefficient_sensitivity(model: CalibratedScorecard, df: pd.DataFrame, y,
     one_at_a_time = pd.DataFrame(rows).set_index(["coefficient", "shift"])
 
     rng = np.random.default_rng(seed)
-    draws = rng.multivariate_normal(beta, cov, size=n_draws)
+    # Cholesky is unique, so the draws are the same on every platform (SVD is not)
+    draws = rng.multivariate_normal(beta, cov, size=n_draws, method="cholesky")
     stats = []
     for b in draws:
         p = pd_of(b)

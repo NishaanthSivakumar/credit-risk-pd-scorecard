@@ -353,3 +353,67 @@ def segment_scatter(seg, ax=None, title="Segments: expected vs realised return")
     ax.set(xlabel="Expected lifetime net return (%)", ylabel="Realised lifetime net return (%)", title=title)
     ax.legend(fontsize=7, loc="upper left")
     return ax
+
+
+RAG_COLORS = {"GREEN": "#1baf7a", "AMBER": "#e8a33d", "RED": "#d64545", "": "#f2f1ee"}
+
+
+def monitoring_stability(stab, ax=None, title="Population stability by issue quarter"):
+    ax = ax or plt.subplots(figsize=(7.2, 3.8))[1]
+    x = np.arange(len(stab))
+    ax.plot(x, stab["score_psi"], marker="o", ms=4, color=BLUE, label="score PSI")
+    ax.plot(x, stab["max_csi"], marker="o", ms=4, color=ORANGE, label="largest feature CSI")
+    for thr, lab in [(0.10, "amber"), (0.25, "red")]:
+        ax.axhline(thr, color=MUTED, lw=1, ls="--")
+        ax.text(len(x) - 0.5, thr, f" {lab}", color=MUTED, fontsize=8, va="bottom", ha="right")
+    ax.set_xticks(x, stab.index, rotation=60, ha="right", fontsize=7)
+    ax.set(ylabel="Index vs training sample", title=title, ylim=(0, max(0.3, float(stab["max_csi"].max()) * 1.1)))
+    ax.legend(loc="upper left")
+    return ax
+
+
+def monitoring_early_warning(early, thresholds, ax=None,
+                             title="Early warning: first-year defaults relative to the model's PDs"):
+    ax = ax or plt.subplots(figsize=(7.2, 3.8))[1]
+    x = np.arange(len(early))
+    a, r = thresholds
+    ax.axhspan(-a * 100, a * 100, color=RAG_COLORS["GREEN"], alpha=0.12, lw=0)
+    for lo, hi in [(a, r), (-r, -a)]:
+        ax.axhspan(lo * 100, hi * 100, color=RAG_COLORS["AMBER"], alpha=0.12, lw=0)
+    ax.plot(x, early["ratio_shift"] * 100, marker="o", ms=5, color=BLUE)
+    ax.axhline(0, color=INK, lw=1)
+    ax.set_xticks(x, early.index, rotation=60, ha="right", fontsize=7)
+    ax.set(ylabel="Change vs development benchmark (%)", title=title)
+    return ax
+
+
+def monitoring_calibration(perf, ax=None, title="Matured vintages: predicted vs observed default rate"):
+    ax = ax or plt.subplots(figsize=(7.2, 3.8))[1]
+    x = np.arange(len(perf))
+    ax.plot(x, perf["observed_dr"] * 100, marker="o", ms=5, color=ORANGE, label="observed default rate")
+    ax.plot(x, perf["mean_pd"] * 100, marker="o", ms=5, color=BLUE, label="mean PD (deployed model)")
+    ax.set_xticks(x, perf.index, fontsize=8)
+    ax.set(ylabel="Lifetime default rate (%)", title=title)
+    ax.legend(loc="upper left")
+    return ax
+
+
+def alert_heatmap(grid, ax=None, title="Monitoring alerts by issue quarter"):
+    """grid: quarters x metrics of GREEN / AMBER / RED / blank."""
+    ax = ax or plt.subplots(figsize=(7.6, 0.32 * len(grid) + 1.4))[1]
+    for i, (q, row) in enumerate(grid.iterrows()):
+        for j, v in enumerate(row):
+            ax.add_patch(plt.Rectangle((j, i), 0.95, 0.9, color=RAG_COLORS.get(v, "#f2f1ee")))
+    ax.set_xlim(0, grid.shape[1])
+    ax.set_ylim(grid.shape[0], 0)
+    ax.set_xticks(np.arange(grid.shape[1]) + 0.475, grid.columns, rotation=35, ha="right", fontsize=8)
+    ax.set_yticks(np.arange(grid.shape[0]) + 0.45, grid.index, fontsize=7)
+    ax.grid(False)
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    ax.tick_params(length=0)
+    ax.set_title(title)
+    handles = [plt.Rectangle((0, 0), 1, 1, color=RAG_COLORS[k]) for k in ("GREEN", "AMBER", "RED", "")]
+    ax.legend(handles, ["green", "amber", "red", "not yet measurable"], ncol=4, fontsize=7,
+              loc="lower center", bbox_to_anchor=(0.5, 1.03))
+    return ax

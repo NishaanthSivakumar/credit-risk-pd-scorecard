@@ -1,6 +1,6 @@
 """End-to-end run: data -> audit -> scorecard -> challenger -> validation ->
 recalibration -> uncertainty -> sensitivity -> decision -> portfolio risk ->
-stress testing -> portfolio optimisation -> reports."""
+stress testing -> portfolio optimisation -> monitoring -> reports."""
 from __future__ import annotations
 
 import json
@@ -19,6 +19,7 @@ from . import calibration as K
 from . import config as C
 from . import portfolio as P
 from . import sensitivity as SE
+from . import monitoring as MON
 from . import optimisation as O
 from . import simulation as MC
 from . import stress as ST
@@ -64,6 +65,7 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
     # ---- 3. data audit ---------------------------------------------------------------------
     say("3/9 Data audit ...")
     checks, audit_tabs = audit.run_checks(raw, df, S, final)
+    production = data.prepare_production(raw)
     del raw
     R.update(checks=checks, audit=audit_tabs)
     for k, t in audit_tabs.items():
@@ -193,6 +195,10 @@ def run(raw_path=None, reports_dir: Path = C.REPORTS_DIR, quick: bool = False, v
     R["portfolio"]["optimisation"] = run_optimisation(R["portfolio"]["loans"], oot, hist, cm,
                                                       R["portfolio"]["rho_loans"], R["portfolio"]["rho_estimate"],
                                                       fig_dir, tab_dir)
+    say("   monitoring ...")
+    R["monitoring"] = run_monitoring(cm, S, production, float(metrics["oot"]["gini"]), fig_dir, tab_dir)
+    (rd / "monitoring_report.md").write_text(
+        reports.monitoring_report(R["monitoring"], reports.load_commentary(rd / "monitoring_commentary.md")))
     pnotes = reports.load_commentary(rd / "portfolio_commentary.md")
     (rd / "portfolio_risk_report.md").write_text(reports.portfolio_report(R["portfolio"], pnotes))
     C.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -426,6 +432,49 @@ def run_optimisation(port: pd.DataFrame, oot: pd.DataFrame, hist: pd.DataFrame, 
     sens.to_csv(tab_dir / "optimisation_input_sensitivity.csv")
     inputs_by_segment.to_csv(tab_dir / "optimisation_inputs_by_segment.csv")
     return out
+
+
+def run_monitoring(model, S: dict, production: pd.DataFrame, validated_gini: float,
+                   fig_dir: Path, tab_dir: Path) -> dict:
+    """Quarterly monitoring of the deployed model (scorecard + recalibration) from
+    the first out-of-time vintage to the data snapshot: inputs and predictions for
+    every quarter, early performance once observed long enough, full performance on
+    matured vintages."""
+    matured = pd.concat([S["calib"], S["oot"]], ignore_index=True)
+    cols = ["issue_d", "early_default", *C.NUMERIC_FEATURES, *C.CATEGORICAL_FEATURES]
+    stream = pd.concat([matured[cols], production[cols + ["months_observed"]]], ignore_index=True)
+    features = list(model.card.features)        # the inputs the deployed model actually uses
+    reference_pd = float(model.predict_pd(S["oot"]).mean())
+    bench = MON.early_ratio_benchmark(model, pd.concat([S["train"], S["test"]], ignore_index=True))
+    tables = {
+        "stability": MON.stability_by_quarter(model, S["train"], stream),
+        "quality": MON.data_quality_by_quarter(S["train"], stream, features),
+        "predictions": MON.predictions_by_quarter(model, stream, reference_pd),
+        "early": MON.early_performance_by_quarter(model, stream, bench),
+        "performance": MON.performance_by_quarter(model, matured, validated_gini),
+    }
+    grid = MON.alert_grid(tables)
+    log = MON.alert_log(tables, grid)
+    trig = MON.triggers(grid, tables["performance"])
+    recent = production[(production["months_observed"] >= C.EARLY_MIN_MONTHS_OBSERVED)]
+    seg_early = MON.segment_early(model, recent, SE.default_segments(recent), bench)
+
+    _save(plots.monitoring_stability(tables["stability"]), fig_dir / "monitoring_stability.png")
+    _save(plots.monitoring_early_warning(tables["early"], C.MON_EARLY_RATIO_SHIFT),
+          fig_dir / "monitoring_early_warning.png")
+    _save(plots.monitoring_calibration(tables["performance"]), fig_dir / "monitoring_calibration.png")
+    _save(plots.alert_heatmap(grid), fig_dir / "monitoring_alerts.png")
+    for k, t in tables.items():
+        t.to_csv(tab_dir / f"monitoring_{k}.csv")
+    grid.to_csv(tab_dir / "monitoring_alert_grid.csv")
+    log.to_csv(tab_dir / "monitoring_alert_log.csv")
+    trig.to_csv(tab_dir / "monitoring_triggers.csv")
+    seg_early.to_csv(tab_dir / "monitoring_segments_early.csv")
+    return {**tables, "grid": grid, "log": log, "triggers": trig, "segments_early": seg_early,
+            "benchmark_ratio": bench, "reference_pd": reference_pd, "validated_gini": validated_gini,
+            "production_loans": len(production), "last_issue": production["issue_d"].max(),
+            "months_observed_max": int(production["months_observed"].max()),
+            "status_mix": production["loan_status"].value_counts(normalize=True)}
 
 
 def _save(ax, path):

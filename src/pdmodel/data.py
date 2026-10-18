@@ -51,34 +51,23 @@ def _emp_length_years(s: pd.Series) -> pd.Series:
     return out
 
 
-def prepare(raw: pd.DataFrame) -> pd.DataFrame:
-    """Apply the sample definition, build the target and engineer features.
-
-    Returns one row per loan with: issue_d, issue_year, default (0/1),
-    model features, the benchmark column (sub_grade) and the outcome fields
-    used only for loss measurement (C.OUTCOME_COLUMNS).
-    """
+def _parse(raw: pd.DataFrame) -> pd.DataFrame:
+    """Parse dates and the term; keep 36-month loans. The Kaggle file ends with two
+    summary rows that have no issue date."""
     df = raw.copy()
-
-    # Parse dates. The Kaggle file ends with two summary rows that have no date.
-    df["issue_d"] = pd.to_datetime(df["issue_d"], format="%b-%Y", errors="coerce")
-    df["earliest_cr_line"] = pd.to_datetime(df["earliest_cr_line"], format="%b-%Y", errors="coerce")
-    df["last_pymnt_d"] = pd.to_datetime(df["last_pymnt_d"], format="%b-%Y", errors="coerce")
+    for c in ("issue_d", "earliest_cr_line", "last_pymnt_d"):
+        df[c] = pd.to_datetime(df[c], format="%b-%Y", errors="coerce")
     df = df.dropna(subset=["issue_d"])
     df["issue_year"] = df["issue_d"].dt.year
-
-    # Sample definition
     df["term"] = df["term"].astype(str).str.strip()
-    df = df[(df["term"] == C.TERM)
-            & df["issue_year"].between(C.FIRST_ISSUE_YEAR, C.LAST_ISSUE_YEAR)]
+    df["loan_status"] = df["loan_status"].astype(str).str.strip()
+    return df[df["term"] == C.TERM]
 
-    # Target: 1 = default (charged off), 0 = fully paid, everything else dropped
-    status = df["loan_status"].astype(str).str.strip()
-    df["default"] = np.where(status.isin(C.BAD_STATUSES), 1,
-                     np.where(status.isin(C.GOOD_STATUSES), 0, -1))
-    df = df[df["default"] >= 0].copy()
 
-    # Feature engineering (application-time information only)
+def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Model inputs from application-time fields. Used for every sample, so
+    development, validation and monitoring see identical transformations."""
+    df = df.copy()
     df["fico"] = (df["fico_range_low"] + df["fico_range_high"]) / 2
     df["credit_hist_years"] = (df["issue_d"] - df["earliest_cr_line"]).dt.days / 365.25
     df["emp_length_yrs"] = _emp_length_years(df["emp_length"])
@@ -86,14 +75,59 @@ def prepare(raw: pd.DataFrame) -> pd.DataFrame:
     df["int_rate"] = _to_pct_number(df["int_rate"])
     inc = df["annual_inc"].where(df["annual_inc"] > 0)
     df["loan_to_income"] = df["loan_amnt"] / inc
-
     df["home_ownership"] = (df["home_ownership"].astype(str).str.upper()
                             .replace({"NONE": "OTHER", "ANY": "OTHER"}))
     for c in C.CATEGORICAL_FEATURES:
         df[c] = df[c].astype(str).str.strip()
+    return df
 
-    keep = (["issue_d", "issue_year", "default", C.BENCHMARK_COLUMN, "grade", "int_rate"]
+
+def early_default_flag(df: pd.DataFrame, months: int = C.EARLY_DEFAULT_MONTHS) -> pd.Series:
+    """1 if the borrower stopped paying within the first `months` months: the loan is
+    charged off, in default or 31-120 days late, and its last payment came no later than
+    month `months` (or it never paid). Observable long before the loan matures, so it is
+    the early-warning outcome for monitoring."""
+    m = ((df["last_pymnt_d"].dt.year - df["issue_d"].dt.year) * 12
+         + (df["last_pymnt_d"].dt.month - df["issue_d"].dt.month))
+    stopped = df["loan_status"].isin(C.EARLY_BAD_STATUSES)
+    return (stopped & (m.le(months) | df["last_pymnt_d"].isna())).astype(int)
+
+
+def prepare(raw: pd.DataFrame) -> pd.DataFrame:
+    """Apply the sample definition, build the target and engineer features.
+
+    Returns one row per loan with: issue_d, issue_year, default (0/1),
+    model features, the benchmark column (sub_grade), the outcome fields used
+    only for loss measurement (C.OUTCOME_COLUMNS) and the early-default flag.
+    """
+    df = _parse(raw)
+    df = df[df["issue_year"].between(C.FIRST_ISSUE_YEAR, C.LAST_ISSUE_YEAR)]
+
+    # Target: 1 = default (charged off), 0 = fully paid, everything else dropped
+    status = df["loan_status"]
+    df = df.assign(default=np.where(status.isin(C.BAD_STATUSES), 1,
+                                    np.where(status.isin(C.GOOD_STATUSES), 0, -1)))
+    df = engineer_features(df[df["default"] >= 0])
+    df["early_default"] = early_default_flag(df)
+
+    keep = (["issue_d", "issue_year", "default", "early_default", C.BENCHMARK_COLUMN, "grade", "int_rate"]
             + C.NUMERIC_FEATURES + C.CATEGORICAL_FEATURES + C.OUTCOME_COLUMNS)
+    return df[keep].reset_index(drop=True)
+
+
+def prepare_production(raw: pd.DataFrame, first_year: int = C.MONITOR_FIRST_YEAR,
+                       last_year: int = C.MONITOR_LAST_YEAR) -> pd.DataFrame:
+    """Loans issued after the modelled vintages, whatever their status: the
+    'production' stream for monitoring. Their lifetime outcome is mostly unknown;
+    early_default and months_observed say what can be measured so far."""
+    snapshot = pd.to_datetime(raw["last_pymnt_d"], format="%b-%Y", errors="coerce").max()
+    df = _parse(raw)
+    df = engineer_features(df[df["issue_year"].between(first_year, last_year)])
+    df["early_default"] = early_default_flag(df)
+    df["months_observed"] = ((snapshot.year - df["issue_d"].dt.year) * 12
+                             + (snapshot.month - df["issue_d"].dt.month))
+    keep = (["issue_d", "issue_year", "loan_status", "early_default", "months_observed", C.BENCHMARK_COLUMN,
+             "grade", "int_rate"] + C.NUMERIC_FEATURES + C.CATEGORICAL_FEATURES)
     return df[keep].reset_index(drop=True)
 
 

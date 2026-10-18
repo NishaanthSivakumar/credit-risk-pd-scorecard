@@ -40,6 +40,11 @@ BAD_STATUSES = {
 }
 # Anything else (Current, Late, In Grace Period) is unresolved -> excluded.
 
+# Early default, for monitoring vintages that have not matured: the borrower
+# stopped paying within the first EARLY_DEFAULT_MONTHS months.
+EARLY_DEFAULT_MONTHS = 12
+EARLY_BAD_STATUSES = BAD_STATUSES | {"Late (31-120 days)"}
+
 # --- Columns -----------------------------------------------------------------
 # Only information known at application time. Anything observed after the loan
 # was issued (total_pymnt, recoveries, last_pymnt_d, out_prncp, ...) would leak
@@ -68,7 +73,7 @@ LEAKAGE_COLUMNS = {
     "collection_recovery_fee", "last_pymnt_d", "last_pymnt_amnt", "next_pymnt_d",
     "last_credit_pull_d", "last_fico_range_high", "last_fico_range_low",
     "hardship_flag", "debt_settlement_flag", "settlement_status", "pymnt_plan",
-    "funded_amnt_inv",
+    "funded_amnt_inv", "early_default", "months_observed",
 }
 
 NUMERIC_FEATURES = [
@@ -194,3 +199,18 @@ OPT_ALPHA = 0.99               # CVaR level
 OPT_SCENARIOS = 10_000
 OPT_SEED = 11
 OPT_FRONTIER_POINTS = 12
+
+# --- Monitoring -----------------------------------------------------------------
+# Loans issued after the modelled vintages act as the production stream.
+MONITOR_FIRST_YEAR, MONITOR_LAST_YEAR = 2016, 2018
+# Early default is only measured once a vintage has been observed this long, so
+# that a borrower who stopped paying in month 12 has had time to reach 31+ days late.
+EARLY_MIN_MONTHS_OBSERVED = 15
+# (green-below, amber-below) thresholds; above amber is RED
+MON_PSI = (PSI_GREEN, PSI_AMBER)                  # score PSI and per-feature CSI against train
+MON_MISSING_CHANGE = (0.02, 0.05)                 # rise in a feature's missing share vs train
+MON_OUT_OF_RANGE = (0.005, 0.02)                  # share of values outside the training range
+MON_MEAN_PD_SHIFT = (0.10, 0.20)                  # relative change in mean PD vs the validated 2015 level
+MON_CAL_GAP = (CAL_GAP_GREEN, CAL_GAP_AMBER)      # |mean PD - observed default rate|, matured vintages
+MON_GINI_DROP = (GINI_DROP_GREEN, GINI_DROP_AMBER)  # relative fall vs validated out-of-time Gini
+MON_EARLY_RATIO_SHIFT = (0.10, 0.20)              # relative change in early-default rate / mean PD vs development

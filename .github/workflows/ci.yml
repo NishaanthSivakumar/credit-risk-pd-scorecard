@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r dashboard/requirements.txt
+
+      - name: Lint
+        run: python -m pyflakes src tests scripts dashboard
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+      # The Kaggle data is not available in CI, so the end-to-end run uses the
+      # synthetic file: it checks that every stage runs, not the results.
+      - name: Pipeline smoke test on synthetic data
+        run: |
+          python scripts/make_synthetic_data.py --n 150000
+          mkdir -p "$RUNNER_TEMP/reports"
+          cp reports/*commentary.md reports/limitations_register.md "$RUNNER_TEMP/reports/"
+          python scripts/run_pipeline.py --quick \
+            --data data/raw/synthetic/accepted_2007_to_2018Q4_SYNTHETIC.csv.gz \
+            --reports "$RUNNER_TEMP/reports"

@@ -331,7 +331,7 @@ Deliverables: `notebooks/10_monitoring.ipynb`, `src/pdmodel/monitoring.py`, `rep
 |---|---|---|
 | Streamlit app reading precomputed results: model performance, stability, portfolio risk, stress testing, optimisation | ✅ | `dashboard/app.py`, six tabs, reads `reports/tables/` only; tested with Streamlit's AppTest |
 | Screenshots and usage notes | ✅ | `reports/figures/dashboard_*.png`; README section 13 |
-| Hosting on Streamlit Community Cloud | ⬜ | Needs the repository owner's Streamlit account; steps in README section 13 |
+| Hosting on Streamlit Community Cloud | ✅ | Live at [credit-risk-pd-scorecard.streamlit.app](https://credit-risk-pd-scorecard.streamlit.app) |
 
 ---
 

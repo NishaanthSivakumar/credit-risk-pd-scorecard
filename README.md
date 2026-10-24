@@ -7,10 +7,12 @@ bank credit model: development, validation, recalibration, portfolio loss modell
 portfolio allocation and ongoing monitoring. Built on 1.6 million LendingClub loans, with every
 result tested on loans the model never saw.
 
+**Live dashboard:** [credit-risk-pd-scorecard.streamlit.app](https://credit-risk-pd-scorecard.streamlit.app)
+
 **Read:** [validation report](reports/validation_report.md) ·
 [portfolio risk report](reports/portfolio_risk_report.md) ·
 [monitoring report](reports/monitoring_report.md) · [model card](MODEL_CARD.md) ·
-[data audit](reports/data_audit.md) · [notebooks](notebooks/) · [dashboard](#13-installation)
+[data audit](reports/data_audit.md) · [notebooks](notebooks/)
 
 ## 1. Project overview
 
@@ -217,15 +219,16 @@ Data: download the Kaggle dataset (link in section 3) and leave `accepted_2007_t
 anywhere under `data/raw/`; the code finds it. Only 30 of its 151 columns are loaded, which needs a few
 GB of RAM. `data/` is git-ignored.
 
-**Dashboard** (needs no data download; it reads the committed result tables):
+**Dashboard:** live at [credit-risk-pd-scorecard.streamlit.app](https://credit-risk-pd-scorecard.streamlit.app),
+or run it locally (no data download needed; it reads the committed result tables):
 
 ```bash
 pip install -r dashboard/requirements.txt
 streamlit run dashboard/app.py
 ```
 
-To host it, connect the repository on [Streamlit Community Cloud](https://streamlit.io/cloud) with
-`dashboard/app.py` as the entry point.
+The hosted copy runs on [Streamlit Community Cloud](https://streamlit.io/cloud) from `dashboard/app.py`
+and redeploys on every push to `main`.
 
 ## 14. Reproduction
 
